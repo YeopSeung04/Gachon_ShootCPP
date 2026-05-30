@@ -39,5 +39,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stat"); 
 	float speed = 500;
 	
+public:
+	// 사용자 입력
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Input");
+	class UInputAction* ia_move;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Input");
+	class UInputMappingContext* imc_shoot;
 	
+	void MovePlayer( const struct FInputActionValue& value);
+	FVector direction;
 };

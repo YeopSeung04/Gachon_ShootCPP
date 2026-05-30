@@ -4,6 +4,9 @@
 #include "ShootCPP/Public/CPlayer.h"
 
 #include "Components/BoxComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "EnhancedInputComponent.h"
+#include "InputActionValue.h"
 
 
 // Sets default values
@@ -15,6 +18,9 @@ ACPlayer::ACPlayer()
 	// box 컴포넌트 생성
 	boxComp = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComp"));
 	RootComponent = boxComp;
+	boxComp->SetCollisionProfileName(TEXT("BlockAll"));
+	
+	
 	bodyMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMeshComp"));
 	bodyMeshComp->SetupAttachment(boxComp);
 	
@@ -43,14 +49,40 @@ void ACPlayer::Tick(float DeltaTime)
 	// 2. 이동시키고 싶다.
 	//	-> P = P0 + vt
 	FVector P0 = GetActorLocation();
-	FVector vt = FVector::RightVector * speed * DeltaTime;
+	FVector vt = direction * speed * DeltaTime;
 	FVector P = P0 + vt;
-	SetActorLocation(P);
+	SetActorLocation(P, true);
+	direction = FVector::Zero();
 }
 
 // Called to bind functionality to input
 void ACPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+	
+	// 사용자 입력 매핑 애셋 등록
+	auto pc = Cast<APlayerController>(Controller);
+	if (pc)
+	{
+		auto subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(pc->GetLocalPlayer());
+		if (subsystem)
+		{
+			subsystem->AddMappingContext(imc_shoot, 0);
+		}
+	}
+	// 처리함수와 입력액션을 바인딩
+	auto playerInput = Cast<UEnhancedInputComponent>(PlayerInputComponent);
+	
+	if (playerInput)
+	{
+		playerInput->BindAction(ia_move, ETriggerEvent::Triggered, this, &ACPlayer::MovePlayer);
+	}
+}
+
+void ACPlayer::MovePlayer(const struct FInputActionValue& value)
+{
+	auto v = value.Get<FVector2D>();
+	direction.Y = v.X;
+	direction.Z = v.Y;
 }
 
