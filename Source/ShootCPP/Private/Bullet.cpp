@@ -1,48 +1,63 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Bullet.h"
 
 #include "Components/BoxComponent.h"
+#include "Enemy.h"
 
-
-// Sets default values
 ABullet::ABullet()
 {
-	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-	
-	// box 컴포넌트 생성
-	boxComp = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComp"));
-	RootComponent = boxComp;
-	boxComp->SetCollisionProfileName(TEXT("BlockAll"));
-	
-	
-	bodyMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMeshComp"));
-	bodyMeshComp->SetupAttachment(boxComp);
-	
-	// bodymesh 에 cube static mesh 데이터 로드해서 할당하기 
-	ConstructorHelpers::FObjectFinder<UStaticMesh> tempMesh(TEXT("/Script/Engine.StaticMesh'/Engine/BasicShapes/Cube.Cube'"));
-	if (tempMesh.Succeeded())
+
+	_boxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComponent"));
+	RootComponent = _boxComponent;
+	_boxComponent->SetBoxExtent(FVector(36.0f, 8.0f, 8.0f));
+	_boxComponent->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+
+	_bodyMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMeshComponent"));
+	_bodyMeshComponent->SetupAttachment(_boxComponent);
+	_bodyMeshComponent->SetRelativeScale3D(FVector(0.7f, 0.12f, 0.12f));
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshFinder(TEXT("/Script/Engine.StaticMesh'/Engine/BasicShapes/Cylinder.Cylinder'"));
+	if (MeshFinder.Succeeded())
 	{
-		bodyMeshComp->SetStaticMesh(tempMesh.Object);
+		_bodyMeshComponent->SetStaticMesh(MeshFinder.Object);
 	}
+
+	InitialLifeSpan = 3.0f;
 }
 
-// Called when the game starts or when spawned
 void ABullet::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+	_boxComponent->OnComponentBeginOverlap.AddDynamic(this, &ABullet::OnHit);
 }
 
-// Called every frame
 void ABullet::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	
-	// p = p0 + vt
-	
-	SetActorLocation(GetActorLocation() + FVector::UpVector * speed * DeltaTime);
+
+	SetActorLocation(GetActorLocation() + GetActorForwardVector() * _speed * DeltaTime, true);
 }
 
+void ABullet::SetDamage(float NewDamage)
+{
+	_damage = NewDamage;
+}
+
+void ABullet::OnHit(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!OtherActor || OtherActor == GetOwner())
+	{
+		return;
+	}
+
+	AEnemy* Enemy = Cast<AEnemy>(OtherActor);
+	if (!Enemy)
+	{
+		return;
+	}
+
+	Enemy->ApplyDamage(_damage);
+	Destroy();
+}
