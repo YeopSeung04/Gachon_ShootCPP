@@ -21,9 +21,16 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	void ApplyDamage(float Damage);
+	void ApplyEnemyDamage(float Damage);
+	void ApplyWallDamage(float Damage);
 	void ApplyShipData(const FPlayerShipData& ShipData);
 	void StartFire();
 	void StopFire();
+	void UseUltimate();
+	void ResetUltimateForWave();
+	void SetUltimateReady(bool IsReady);
+	bool IsUltimateReady() const;
+	bool HasUsedUltimateThisWave() const;
 	void SetMoveRightInput(float Value);
 	void SetMoveForwardInput(float Value);
 	void SetRollInput(float Value);
@@ -68,6 +75,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category="Shoot|Combat")
 	TSubclassOf<class ABullet> _bulletClass;
 
+	UPROPERTY(EditDefaultsOnly, Category="Shoot|Combat")
+	TSubclassOf<class ABigMissile> _ultimateMissileClass;
+
 	UPROPERTY(EditDefaultsOnly, Category="Shoot|Stat")
 	float _cruiseSpeed = 520.0f;
 
@@ -82,6 +92,9 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, Category="Shoot|Combat")
 	float _bulletDamage = 20.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category="Shoot|Combat")
+	float _ultimateDamage = 210.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category="Shoot|Combat")
 	float _fireInterval = 0.14f;
@@ -104,6 +117,30 @@ private:
 	UPROPERTY()
 	class USoundBase* _damageSound = nullptr;
 
+	UPROPERTY()
+	class USoundBase* _enemyHitSound = nullptr;
+
+	UPROPERTY()
+	class USoundBase* _wallHitSound = nullptr;
+
+	UPROPERTY()
+	class USoundBase* _lowHealthSound = nullptr;
+
+	UPROPERTY()
+	class USoundBase* _deathSound = nullptr;
+
+	UPROPERTY()
+	class USoundBase* _firstPersonSound = nullptr;
+
+	UPROPERTY()
+	class USoundBase* _thirdPersonSound = nullptr;
+
+	UPROPERTY()
+	class USoundBase* _ultimateFireSound = nullptr;
+
+	UPROPERTY()
+	class USoundBase* _bankSound = nullptr;
+
 	float _health = 0.0f;
 	float _rightInput = 0.0f;
 	float _forwardInput = 0.0f;
@@ -114,6 +151,11 @@ private:
 	FString _shipName = TEXT("Falcon");
 	bool _isFirstPersonView = false;
 	bool _isFiring = false;
+	bool _isUltimateReady = false;
+	bool _hasUsedUltimateThisWave = false;
+	bool _hasPlayedLowHealthSound = false;
+	bool _wasRolling = false;
+	int32 _rollSoundInputSign = 0;
 
 	void MoveRight(float Value);
 	void MoveForward(float Value);
@@ -124,6 +166,7 @@ private:
 	void ConfirmStart();
 	void RestartGame();
 	void Fire();
+	void PlayVoiceSound(class USoundBase* Sound);
 	void UpdateCamera();
 	void UpdateBanking(float DeltaTime);
 	void HandleArenaBounds(FVector& Location);

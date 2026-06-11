@@ -22,6 +22,8 @@ void AShootPlayerController::SetupInputComponent()
 	InputComponent->BindAction(TEXT("SelectTitan"), IE_Pressed, this, &AShootPlayerController::HandleSelectTitan);
 	InputComponent->BindAction(TEXT("ConfirmStart"), IE_Pressed, this, &AShootPlayerController::HandleConfirm);
 	InputComponent->BindAction(TEXT("RestartGame"), IE_Pressed, this, &AShootPlayerController::HandleRestart);
+	FInputActionBinding& PauseBinding = InputComponent->BindAction(TEXT("PauseMenu"), IE_Pressed, this, &AShootPlayerController::HandlePauseMenu);
+	PauseBinding.bExecuteWhenPaused = true;
 
 	InputComponent->BindAxis(TEXT("MoveRight"), this, &AShootPlayerController::HandleMoveRight);
 	InputComponent->BindAxis(TEXT("MoveForward"), this, &AShootPlayerController::HandleMoveForward);
@@ -58,6 +60,20 @@ void AShootPlayerController::ApplyGameInputMode()
 	SetIgnoreLookInput(false);
 	SetInputMode(FInputModeGameOnly());
 	FlushPressedKeys();
+}
+
+void AShootPlayerController::ApplyPauseInputMode()
+{
+	bShowMouseCursor = true;
+	bEnableClickEvents = true;
+	bEnableMouseOverEvents = true;
+	SetIgnoreMoveInput(false);
+	SetIgnoreLookInput(false);
+
+	FInputModeGameAndUI InputMode;
+	InputMode.SetHideCursorDuringCapture(false);
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(InputMode);
 }
 
 void AShootPlayerController::HandlePrimaryPressed()
@@ -126,9 +142,33 @@ void AShootPlayerController::HandleConfirm()
 void AShootPlayerController::HandleRestart()
 {
 	AShootGameMode* GameMode = GetShootGameMode();
-	if (GameMode && GameMode->IsGameOver())
+	if (!GameMode)
+	{
+		return;
+	}
+
+	if (GameMode->IsGameOver())
 	{
 		GameMode->RestartGame();
+		return;
+	}
+
+	if (GameMode->GetGameState() == EShootGameState::Playing)
+	{
+		ACPlayer* ShootPlayer = GetShootPlayer();
+		if (ShootPlayer)
+		{
+			ShootPlayer->UseUltimate();
+		}
+	}
+}
+
+void AShootPlayerController::HandlePauseMenu()
+{
+	AShootGameMode* GameMode = GetShootGameMode();
+	if (GameMode)
+	{
+		GameMode->TogglePauseMenu();
 	}
 }
 
@@ -186,7 +226,7 @@ void AShootPlayerController::PollMovementKeys()
 	}
 
 	AShootGameMode* GameMode = GetShootGameMode();
-	if (!GameMode || GameMode->GetGameState() != EShootGameState::Playing)
+	if (!GameMode || GameMode->GetGameState() != EShootGameState::Playing || GameMode->IsPauseMenuOpen())
 	{
 		ShootPlayer->SetMoveRightInput(0.0f);
 		ShootPlayer->SetMoveForwardInput(0.0f);

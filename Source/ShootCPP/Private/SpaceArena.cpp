@@ -85,26 +85,30 @@ void ASpaceArena::Tick(float DeltaTime)
 	}
 
 	const float PlayerX = PlayerPawn->GetActorLocation().X;
+	const float ArenaAnchorX = FMath::GridSnap(PlayerX, FloorSegmentSpacing);
+	SetActorLocation(FVector(ArenaAnchorX, 0.0f, 0.0f));
+
+	const float LocalPlayerX = PlayerX - ArenaAnchorX;
 	const float FloorTotalLength = FloorSegmentCount * FloorSegmentSpacing;
 	const float GateTotalLength = GateCount * GateSpacing;
 
 	for (int32 Index = 0; Index < _floorSegments.Num(); ++Index)
 	{
-		RecycleLinearComponent(_floorSegments[Index], PlayerX, FloorTotalLength);
-		RecycleLinearComponent(_leftRails[Index], PlayerX, FloorTotalLength);
-		RecycleLinearComponent(_rightRails[Index], PlayerX, FloorTotalLength);
+		RecycleLinearComponent(_floorSegments[Index], LocalPlayerX, FloorTotalLength);
+		RecycleLinearComponent(_leftRails[Index], LocalPlayerX, FloorTotalLength);
+		RecycleLinearComponent(_rightRails[Index], LocalPlayerX, FloorTotalLength);
 	}
 
 	for (int32 Index = 0; Index < _gateTopBars.Num(); ++Index)
 	{
-		RecycleLinearComponent(_gateTopBars[Index], PlayerX, GateTotalLength);
-		RecycleLinearComponent(_gateLeftBars[Index], PlayerX, GateTotalLength);
-		RecycleLinearComponent(_gateRightBars[Index], PlayerX, GateTotalLength);
+		RecycleLinearComponent(_gateTopBars[Index], LocalPlayerX, GateTotalLength);
+		RecycleLinearComponent(_gateLeftBars[Index], LocalPlayerX, GateTotalLength);
+		RecycleLinearComponent(_gateRightBars[Index], LocalPlayerX, GateTotalLength);
 	}
 
 	for (UStaticMeshComponent* Star : _stars)
 	{
-		RecycleLinearComponent(Star, PlayerX, FloorTotalLength);
+		RecycleLinearComponent(Star, LocalPlayerX, FloorTotalLength);
 	}
 }
 
@@ -112,7 +116,7 @@ void ASpaceArena::CreateFloorAndRails(UStaticMesh* CubeMesh)
 {
 	for (int32 Index = 0; Index < FloorSegmentCount; ++Index)
 	{
-		const float X = (Index - 2) * FloorSegmentSpacing;
+		const float X = (Index - FloorSegmentCount / 2) * FloorSegmentSpacing;
 
 		UStaticMeshComponent* FloorSegment = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("FloorSegment_%02d"), Index));
 		FloorSegment->SetupAttachment(_rootComponent);
@@ -153,7 +157,7 @@ void ASpaceArena::CreateGates(UStaticMesh* CubeMesh)
 {
 	for (int32 Index = 0; Index < GateCount; ++Index)
 	{
-		const float X = (Index + 1) * GateSpacing;
+		const float X = (Index - GateCount / 2) * GateSpacing;
 
 		UStaticMeshComponent* TopBar = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("GateTopBar_%02d"), Index));
 		TopBar->SetupAttachment(_rootComponent);
@@ -194,7 +198,7 @@ void ASpaceArena::CreateStars(UStaticMesh* SphereMesh)
 {
 	for (int32 Index = 0; Index < StarCount; ++Index)
 	{
-		const float X = (Index % 14) * FloorSegmentSpacing - 1600.0f;
+		const float X = ((Index % 14) - 7) * FloorSegmentSpacing;
 		const float Y = (Index % 2 == 0 ? -1.0f : 1.0f) * (1500.0f + (Index % 5) * 220.0f);
 		const float Z = 620.0f + (Index % 7) * 170.0f;
 
@@ -234,9 +238,28 @@ void ASpaceArena::RecycleLinearComponent(UStaticMeshComponent* MeshComponent, fl
 	}
 
 	FVector Location = MeshComponent->GetRelativeLocation();
-	if (Location.X < PlayerX - RecycleBehindDistance)
+	const float RecycleDistance = TotalLength * 0.5f;
+
+	if (Location.X < PlayerX - RecycleDistance)
 	{
-		Location.X += TotalLength;
+		do
+		{
+			Location.X += TotalLength;
+		}
+		while (Location.X < PlayerX - RecycleDistance);
+
+		MeshComponent->SetRelativeLocation(Location);
+		return;
+	}
+
+	if (Location.X > PlayerX + RecycleDistance)
+	{
+		do
+		{
+			Location.X -= TotalLength;
+		}
+		while (Location.X > PlayerX + RecycleDistance);
+
 		MeshComponent->SetRelativeLocation(Location);
 	}
 }

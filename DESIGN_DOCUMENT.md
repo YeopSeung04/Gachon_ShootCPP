@@ -337,3 +337,20 @@ ShootCPP Win64 Development
 - `W`는 전진, `S`는 후진, `A/D`는 좌우 이동만 담당하며, `A/D` 이동 중 자동 회전은 발생하지 않는다.
 - 일반 적과 보스는 플레이어와 같은 Z 높이에서 추적한다.
 - 적 스폰 위치도 플레이어의 현재 Z 높이에 맞춰 생성된다.
+
+## 17. 무한맵 및 ESC 볼륨 메뉴
+
+- `ASpaceArena`의 바닥, 좌우 레일, 게이트, 별 오브젝트는 플레이어 위치를 기준으로 앞/뒤 양방향 재배치된다.
+- 플레이어가 `W`로 앞으로 이동해도, `S`로 뒤로 이동해도 전장 오브젝트가 계속 이어지는 무한맵처럼 보이도록 구성했다.
+- `ESC`를 누르면 전투 화면 위에 일시정지 메뉴가 표시된다.
+- 일시정지 메뉴에서는 마우스로 `-`, `+` 버튼을 눌러 마스터 볼륨을 10% 단위로 조절할 수 있다.
+- `Resume` 버튼 또는 `ESC`를 다시 누르면 게임으로 복귀한다.
+
+## 18. Unreal Editor 수동 UI 편집 구조
+
+- 기존 C++ Canvas HUD는 fallback으로 유지한다.
+- `UShootUserWidget` C++ 베이스 클래스를 추가하여 UMG Widget Blueprint에서 게임 로직 함수를 직접 호출할 수 있게 했다.
+- `AShootHUD`에는 Lobby, Dashboard, Ship Select, Combat, Pause Menu, Game Over용 Widget Class 슬롯을 추가했다.
+- 사용자는 `BP_ShootHUD`를 만들고 각 슬롯에 `WBP_Lobby`, `WBP_Combat` 같은 Widget Blueprint를 지정하면 된다.
+- Widget Blueprint가 지정된 화면은 UMG가 우선 표시되고, 지정되지 않은 화면은 기존 C++ HUD가 표시된다.
+- 자세한 작업 순서는 `UI_EDITING_GUIDE.md`에 정리했다.

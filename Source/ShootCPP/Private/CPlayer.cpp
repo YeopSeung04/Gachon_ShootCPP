@@ -1,9 +1,11 @@
 #include "CPlayer.h"
 
+#include "BigMissile.h"
 #include "Bullet.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BoxComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "InputCoreTypes.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
 #include "ShootGameMode.h"
@@ -102,6 +104,54 @@ ACPlayer::ACPlayer()
 		_damageSound = DamageSoundFinder.Object;
 	}
 
+	static ConstructorHelpers::FObjectFinder<USoundBase> EnemyHitSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/PlayerHit.PlayerHit'"));
+	if (EnemyHitSoundFinder.Succeeded())
+	{
+		_enemyHitSound = EnemyHitSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> WallHitSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/WallHit.WallHit'"));
+	if (WallHitSoundFinder.Succeeded())
+	{
+		_wallHitSound = WallHitSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> LowHealthSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/LowHp.LowHp'"));
+	if (LowHealthSoundFinder.Succeeded())
+	{
+		_lowHealthSound = LowHealthSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> DeathSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/PlayerDeath.PlayerDeath'"));
+	if (DeathSoundFinder.Succeeded())
+	{
+		_deathSound = DeathSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> FirstPersonSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/FirstPersonSwitch.FirstPersonSwitch'"));
+	if (FirstPersonSoundFinder.Succeeded())
+	{
+		_firstPersonSound = FirstPersonSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> ThirdPersonSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/ThirdPersonReturn.ThirdPersonReturn'"));
+	if (ThirdPersonSoundFinder.Succeeded())
+	{
+		_thirdPersonSound = ThirdPersonSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> UltimateFireSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/UltimateFire.UltimateFire'"));
+	if (UltimateFireSoundFinder.Succeeded())
+	{
+		_ultimateFireSound = UltimateFireSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> BankSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/Bank.Bank'"));
+	if (BankSoundFinder.Succeeded())
+	{
+		_bankSound = BankSoundFinder.Object;
+	}
+
 	_springArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponent"));
 	_springArmComponent->SetupAttachment(_boxComponent);
 	_springArmComponent->bUsePawnControlRotation = false;
@@ -113,6 +163,7 @@ ACPlayer::ACPlayer()
 
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 	_bulletClass = ABullet::StaticClass();
+	_ultimateMissileClass = ABigMissile::StaticClass();
 }
 
 void ACPlayer::BeginPlay()
@@ -175,19 +226,30 @@ void ACPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &ACPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("Roll"), this, &ACPlayer::Roll);
 	PlayerInputComponent->BindAction(TEXT("ToggleCamera"), IE_Pressed, this, &ACPlayer::ToggleCameraView);
+	PlayerInputComponent->BindAction(TEXT("Ultimate"), IE_Pressed, this, &ACPlayer::UseUltimate);
+	PlayerInputComponent->BindAction(TEXT("RestartGame"), IE_Pressed, this, &ACPlayer::UseUltimate);
 }
 
 void ACPlayer::ApplyDamage(float Damage)
 {
-	if (IsDead())
+	if (IsDead() || !CanPlay())
 	{
 		return;
 	}
 
 	_health = FMath::Max(0.0f, _health - Damage);
-	if (_damageSound)
+	if (!_hasPlayedLowHealthSound && _health > 0.0f && GetHealthRatio() <= 0.1f)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, _damageSound, GetActorLocation(), 0.65f);
+		_hasPlayedLowHealthSound = true;
+		if (_lowHealthSound)
+		{
+			PlayVoiceSound(_lowHealthSound);
+		}
+	}
+
+	if (IsDead() && _deathSound)
+	{
+		PlayVoiceSound(_deathSound);
 	}
 
 	if (IsDead())
@@ -200,6 +262,36 @@ void ACPlayer::ApplyDamage(float Damage)
 	}
 }
 
+void ACPlayer::ApplyEnemyDamage(float Damage)
+{
+	if (!CanPlay())
+	{
+		return;
+	}
+
+	if (_enemyHitSound && !IsDead())
+	{
+		PlayVoiceSound(_enemyHitSound);
+	}
+
+	ApplyDamage(Damage);
+}
+
+void ACPlayer::ApplyWallDamage(float Damage)
+{
+	if (!CanPlay())
+	{
+		return;
+	}
+
+	if (_wallHitSound && !IsDead())
+	{
+		PlayVoiceSound(_wallHitSound);
+	}
+
+	ApplyDamage(Damage);
+}
+
 void ACPlayer::ApplyShipData(const FPlayerShipData& ShipData)
 {
 	_shipName = ShipData.DisplayName;
@@ -208,7 +300,9 @@ void ACPlayer::ApplyShipData(const FPlayerShipData& ShipData)
 	_verticalSpeed = ShipData.VerticalSpeed;
 	_maxHealth = ShipData.MaxHealth;
 	_health = _maxHealth;
+	_hasPlayedLowHealthSound = false;
 	_bulletDamage = ShipData.BulletDamage;
+	_ultimateDamage = ShipData.UltimateDamage;
 	_fireInterval = ShipData.FireInterval;
 	_wallDamage = ShipData.ShipType == EPlayerShipType::Falcon ? 14.0f : 9.0f;
 
@@ -305,6 +399,24 @@ void ACPlayer::SetMoveForwardInput(float Value)
 
 void ACPlayer::SetRollInput(float Value)
 {
+	int32 CurrentRollInputSign = 0;
+	if (CanPlay())
+	{
+		if (const APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+		{
+			const bool IsPressingRightRoll = PlayerController->IsInputKeyDown(EKeys::E);
+			const bool IsPressingLeftRoll = PlayerController->IsInputKeyDown(EKeys::Q);
+			CurrentRollInputSign = (IsPressingRightRoll ? 1 : 0) - (IsPressingLeftRoll ? 1 : 0);
+		}
+	}
+
+	if (CurrentRollInputSign != 0 && CurrentRollInputSign != _rollSoundInputSign && _bankSound)
+	{
+		PlayVoiceSound(_bankSound);
+	}
+
+	_rollSoundInputSign = CurrentRollInputSign;
+	_wasRolling = CurrentRollInputSign != 0;
 	_rollInput = Value;
 }
 
@@ -313,7 +425,28 @@ void ACPlayer::ResetInputState()
 	_rightInput = 0.0f;
 	_forwardInput = 0.0f;
 	_rollInput = 0.0f;
+	_rollSoundInputSign = 0;
 	_isFiring = false;
+}
+
+void ACPlayer::ResetUltimateForWave()
+{
+	_hasUsedUltimateThisWave = false;
+}
+
+void ACPlayer::SetUltimateReady(bool IsReady)
+{
+	_isUltimateReady = IsReady;
+}
+
+bool ACPlayer::IsUltimateReady() const
+{
+	return _isUltimateReady;
+}
+
+bool ACPlayer::HasUsedUltimateThisWave() const
+{
+	return _hasUsedUltimateThisWave;
 }
 
 void ACPlayer::StartFire()
@@ -342,9 +475,14 @@ void ACPlayer::ToggleCameraView()
 	_isFirstPersonView = !_isFirstPersonView;
 	UpdateCamera();
 
-	if (_cameraSwitchSound)
+	USoundBase* ViewSound = _isFirstPersonView ? _firstPersonSound : _thirdPersonSound;
+	if (ViewSound)
 	{
-		UGameplayStatics::PlaySound2D(this, _cameraSwitchSound, 0.45f);
+		PlayVoiceSound(ViewSound);
+	}
+	else if (_cameraSwitchSound)
+	{
+		PlayVoiceSound(_cameraSwitchSound);
 	}
 }
 
@@ -387,6 +525,68 @@ void ACPlayer::RestartGame()
 	if (GameMode && GameMode->IsGameOver())
 	{
 		GameMode->RestartGame();
+	}
+}
+
+void ACPlayer::PlayVoiceSound(USoundBase* Sound)
+{
+	if (!Sound)
+	{
+		return;
+	}
+
+	AShootGameMode* GameMode = Cast<AShootGameMode>(UGameplayStatics::GetGameMode(this));
+	if (GameMode)
+	{
+		if (Sound == _ultimateFireSound)
+		{
+			GameMode->PlayImportantVoiceSound(Sound);
+			return;
+		}
+
+		GameMode->PlayVoiceSound(Sound);
+		return;
+	}
+
+	UGameplayStatics::PlaySound2D(this, Sound, 1.0f);
+}
+
+void ACPlayer::UseUltimate()
+{
+	AShootGameMode* GameMode = Cast<AShootGameMode>(UGameplayStatics::GetGameMode(this));
+	if (GameMode && GameMode->IsGameOver())
+	{
+		GameMode->RestartGame();
+		return;
+	}
+
+	if (!CanPlay() || !_isUltimateReady || _hasUsedUltimateThisWave || !_ultimateMissileClass)
+	{
+		return;
+	}
+
+	_isUltimateReady = false;
+	_hasUsedUltimateThisWave = true;
+
+	const FVector SpawnLocation = GetActorLocation() + GetActorForwardVector() * 180.0f;
+	const FRotator SpawnRotation = GetActorRotation();
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.Owner = this;
+	SpawnParameters.Instigator = this;
+
+	ABigMissile* Missile = GetWorld()->SpawnActor<ABigMissile>(_ultimateMissileClass, SpawnLocation, SpawnRotation, SpawnParameters);
+	if (Missile)
+	{
+		Missile->SetDamage(_ultimateDamage);
+	}
+
+	if (_ultimateFireSound)
+	{
+		PlayVoiceSound(_ultimateFireSound);
+	}
+	else if (_fireSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, _fireSound, SpawnLocation, 0.9f);
 	}
 }
 
@@ -455,7 +655,7 @@ void ACPlayer::HandleArenaBounds(FVector& Location)
 
 	if (HitWall && _wallDamageCooldown <= 0.0f)
 	{
-		ApplyDamage(_wallDamage);
+		ApplyWallDamage(_wallDamage);
 		_wallDamageCooldown = _wallDamageInterval;
 	}
 }

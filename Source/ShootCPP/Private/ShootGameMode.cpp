@@ -2,14 +2,19 @@
 
 #include "BossEnemy.h"
 #include "CPlayer.h"
+#include "Components/AudioComponent.h"
 #include "Enemy.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "LeaderboardSaveGame.h"
 #include "ShootHUD.h"
 #include "ShootPlayerController.h"
+#include "Sound/AudioSettings.h"
+#include "Sound/SoundClass.h"
+#include "Sound/SoundMix.h"
 #include "Sound/SoundBase.h"
 #include "SpaceArena.h"
+#include "Engine/DataTable.h"
 #include "UObject/ConstructorHelpers.h"
 
 AShootGameMode::AShootGameMode()
@@ -20,8 +25,28 @@ AShootGameMode::AShootGameMode()
 	_enemyClass = AEnemy::StaticClass();
 	_bossClass = ABossEnemy::StaticClass();
 
+	static ConstructorHelpers::FObjectFinder<UDataTable> PlayerStatTableFinder(TEXT("/Script/Engine.DataTable'/Game/Data/DT_PlayerStats.DT_PlayerStats'"));
+	if (PlayerStatTableFinder.Succeeded())
+	{
+		_playerStatTable = PlayerStatTableFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UDataTable> EnemyStatTableFinder(TEXT("/Script/Engine.DataTable'/Game/Data/DT_EnemyStats.DT_EnemyStats'"));
+	if (EnemyStatTableFinder.Succeeded())
+	{
+		_enemyStatTable = EnemyStatTableFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UDataTable> WaveDesignTableFinder(TEXT("/Script/Engine.DataTable'/Game/Data/DT_WaveDesigns.DT_WaveDesigns'"));
+	if (WaveDesignTableFinder.Succeeded())
+	{
+		_waveDesignTable = WaveDesignTableFinder.Object;
+	}
+
 	ConfigureShipData();
+	ConfigureEnemyStatData();
 	ConfigureWaveDesigns();
+	LoadDataTables();
 	_selectedShipData = _falconData;
 
 	static ConstructorHelpers::FObjectFinder<USoundBase> LaunchSoundFinder(TEXT("/Script/Engine.SoundWave'/Engine/EditorSounds/GamePreview/StartPlayInEditor.StartPlayInEditor'"));
@@ -47,11 +72,117 @@ AShootGameMode::AShootGameMode()
 	{
 		_failSound = FailSoundFinder.Object;
 	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> FirstKillSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/FirstKill.FirstKill'"));
+	if (FirstKillSoundFinder.Succeeded())
+	{
+		_firstKillSound = FirstKillSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> DoubleKillSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/DoubleKill.DoubleKill'"));
+	if (DoubleKillSoundFinder.Succeeded())
+	{
+		_doubleKillSound = DoubleKillSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> TripleKillSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/TripleKill.TripleKill'"));
+	if (TripleKillSoundFinder.Succeeded())
+	{
+		_tripleKillSound = TripleKillSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> QuadraKillSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/QuadraKill.QuadraKill'"));
+	if (QuadraKillSoundFinder.Succeeded())
+	{
+		_quadraKillSound = QuadraKillSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> PentaKillSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/PentaKill.PentaKill'"));
+	if (PentaKillSoundFinder.Succeeded())
+	{
+		_pentaKillSound = PentaKillSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> RampageSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/Rampage.Rampage'"));
+	if (RampageSoundFinder.Succeeded())
+	{
+		_rampageSound = RampageSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> GotchaSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/Gotcha.Gotcha'"));
+	if (GotchaSoundFinder.Succeeded())
+	{
+		_gotchaSound = GotchaSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> BossCutSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/BossCut.BossCut'"));
+	if (BossCutSoundFinder.Succeeded())
+	{
+		_bossCutSound = BossCutSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> BossClearSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/BossClear.BossClear'"));
+	if (BossClearSoundFinder.Succeeded())
+	{
+		_bossClearSound = BossClearSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> ClickSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/Click.Click'"));
+	if (ClickSoundFinder.Succeeded())
+	{
+		_clickSound = ClickSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> GameStartSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/GameStart.GameStart'"));
+	if (GameStartSoundFinder.Succeeded())
+	{
+		_gameStartSound = GameStartSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> UltimateReadySoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/UltimateReady.UltimateReady'"));
+	if (UltimateReadySoundFinder.Succeeded())
+	{
+		_ultimateReadySound = UltimateReadySoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> QuitSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/PlayerQuit.PlayerQuit'"));
+	if (QuitSoundFinder.Succeeded())
+	{
+		_quitSound = QuitSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> SelectCharacterSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/SelectCharacter.SelectCharacter'"));
+	if (SelectCharacterSoundFinder.Succeeded())
+	{
+		_selectCharacterSound = SelectCharacterSoundFinder.Object;
+	}
 }
 
 void AShootGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+
+	_masterSoundMix = NewObject<USoundMix>(this, TEXT("RuntimeMasterSoundMix"));
+	_masterSoundClass = GetDefault<UAudioSettings>()->GetDefaultSoundClass();
+	ApplyMasterVolume();
+
+	_voiceAudioComponent = NewObject<UAudioComponent>(this, TEXT("RuntimeVoiceAudioComponent"));
+	if (_voiceAudioComponent)
+	{
+		_voiceAudioComponent->bAutoActivate = false;
+		_voiceAudioComponent->bAllowSpatialization = false;
+		_voiceAudioComponent->RegisterComponent();
+		_voiceAudioComponent->OnAudioFinished.AddDynamic(this, &AShootGameMode::HandleVoiceFinished);
+	}
+
+	_calloutAudioComponent = NewObject<UAudioComponent>(this, TEXT("RuntimeCalloutAudioComponent"));
+	if (_calloutAudioComponent)
+	{
+		_calloutAudioComponent->bAutoActivate = false;
+		_calloutAudioComponent->bAllowSpatialization = false;
+		_calloutAudioComponent->RegisterComponent();
+		_calloutAudioComponent->OnAudioFinished.AddDynamic(this, &AShootGameMode::HandleCalloutFinished);
+	}
 
 	LoadLeaderboard();
 	EnsureSpaceArena();
@@ -66,6 +197,7 @@ void AShootGameMode::OpenLobby()
 		return;
 	}
 
+	PlayMenuClickSound();
 	_gameState = EShootGameState::Lobby;
 	UpdateInputMode();
 }
@@ -77,6 +209,7 @@ void AShootGameMode::OpenDashboard()
 		return;
 	}
 
+	PlayMenuClickSound();
 	_gameState = EShootGameState::Dashboard;
 	UpdateInputMode();
 }
@@ -88,9 +221,11 @@ void AShootGameMode::OpenShipSelect()
 		return;
 	}
 
+	PlayMenuClickSound();
 	_gameState = EShootGameState::ShipSelect;
 	ApplySelectedShipToPlayer();
 	UpdateInputMode();
+	PlayVoiceSound(_selectCharacterSound);
 }
 
 void AShootGameMode::SelectFalcon()
@@ -100,6 +235,7 @@ void AShootGameMode::SelectFalcon()
 		return;
 	}
 
+	PlayMenuClickSound();
 	_selectedShipData = _falconData;
 	ApplySelectedShipToPlayer();
 }
@@ -111,6 +247,7 @@ void AShootGameMode::SelectTitan()
 		return;
 	}
 
+	PlayMenuClickSound();
 	_selectedShipData = _titanData;
 	ApplySelectedShipToPlayer();
 }
@@ -122,7 +259,9 @@ void AShootGameMode::StartSelectedGame()
 		return;
 	}
 
+	PlayMenuClickSound();
 	_gameState = EShootGameState::Playing;
+	UGameplayStatics::SetGamePaused(this, false);
 	_currentWave = 1;
 	_didPlayerWin = false;
 	_playStartTime = GetWorld()->GetTimeSeconds();
@@ -139,9 +278,13 @@ void AShootGameMode::StartSelectedGame()
 	StartWave();
 	UpdateInputMode();
 
-	if (_launchSound)
+	if (_gameStartSound)
 	{
-		UGameplayStatics::PlaySound2D(this, _launchSound, 0.55f);
+		PlayVoiceSound(_gameStartSound);
+	}
+	else if (_launchSound)
+	{
+		PlayVoiceSound(_launchSound);
 	}
 }
 
@@ -152,8 +295,59 @@ void AShootGameMode::RestartGame()
 
 void AShootGameMode::QuitGame()
 {
-	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
-	UKismetSystemLibrary::QuitGame(this, PlayerController, EQuitPreference::Quit, true);
+	if (_quitSound)
+	{
+		PlayVoiceSound(_quitSound);
+		const float QuitDelay = GetVoiceQueueDelay(0.05f);
+		FTimerHandle QuitTimerHandle;
+		GetWorldTimerManager().SetTimer(QuitTimerHandle, this, &AShootGameMode::QuitGameNow, QuitDelay, false);
+		return;
+	}
+
+	QuitGameNow();
+}
+
+void AShootGameMode::TogglePauseMenu()
+{
+	if (_gameState == EShootGameState::Playing)
+	{
+		_gameState = EShootGameState::PauseMenu;
+		UGameplayStatics::SetGamePaused(this, true);
+		UpdateInputMode();
+		return;
+	}
+
+	if (_gameState == EShootGameState::PauseMenu)
+	{
+		ClosePauseMenu();
+	}
+}
+
+void AShootGameMode::ClosePauseMenu()
+{
+	if (_gameState != EShootGameState::PauseMenu)
+	{
+		return;
+	}
+
+	PlayMenuClickSound();
+	_gameState = EShootGameState::Playing;
+	UGameplayStatics::SetGamePaused(this, false);
+	UpdateInputMode();
+}
+
+void AShootGameMode::IncreaseMasterVolume()
+{
+	PlayMenuClickSound();
+	_masterVolume = FMath::Clamp(_masterVolume + 0.1f, 0.0f, 1.0f);
+	ApplyMasterVolume();
+}
+
+void AShootGameMode::DecreaseMasterVolume()
+{
+	PlayMenuClickSound();
+	_masterVolume = FMath::Clamp(_masterVolume - 0.1f, 0.0f, 1.0f);
+	ApplyMasterVolume();
 }
 
 void AShootGameMode::HandlePrimaryClick(float ScreenX, float ScreenY)
@@ -251,6 +445,15 @@ void AShootGameMode::RegisterEnemyKilled(int32 ScoreValue, bool IsBoss)
 		Player->AddScore(ScoreValue);
 	}
 
+	PlayKillCallout(IsBoss);
+	if (!IsBoss && _killsThisWave == KillsRequiredForUltimate && Player && !Player->IsUltimateReady())
+	{
+		_pendingUltimateReadyWave = _currentWave;
+		const float ReadyDelay = FMath::Max(GetVoiceQueueDelay(0.0f), GetCalloutQueueDelay(0.0f));
+		GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
+		GetWorldTimerManager().SetTimer(_ultimateReadyTimerHandle, this, &AShootGameMode::EnableUltimateForCurrentWave, ReadyDelay, false);
+	}
+
 	if (IsBoss)
 	{
 		EndGame(true);
@@ -265,17 +468,14 @@ void AShootGameMode::EndGame(bool DidWin)
 	}
 
 	_gameState = EShootGameState::GameOver;
+	UGameplayStatics::SetGamePaused(this, false);
 	_didPlayerWin = DidWin;
 	GetWorldTimerManager().ClearTimer(_enemySpawnTimerHandle);
 	GetWorldTimerManager().ClearTimer(_waveTimerHandle);
+	GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
 	SaveLeaderboardEntry(DidWin);
 	UpdateInputMode();
 
-	USoundBase* ResultSound = DidWin ? _winSound : _failSound;
-	if (ResultSound)
-	{
-		UGameplayStatics::PlaySound2D(this, ResultSound, 0.75f);
-	}
 }
 
 EShootGameState AShootGameMode::GetGameState() const
@@ -305,7 +505,7 @@ bool AShootGameMode::DidPlayerWin() const
 
 bool AShootGameMode::IsBossActive() const
 {
-	return IsValid(_bossEnemy) && _gameState == EShootGameState::Playing;
+	return IsValid(_bossEnemy) && (_gameState == EShootGameState::Playing || _gameState == EShootGameState::PauseMenu);
 }
 
 float AShootGameMode::GetBossHealthRatio() const
@@ -325,7 +525,7 @@ int32 AShootGameMode::GetCurrentWave() const
 
 float AShootGameMode::GetWaveProgressRatio() const
 {
-	if (_gameState != EShootGameState::Playing || IsBossActive())
+	if ((_gameState != EShootGameState::Playing && _gameState != EShootGameState::PauseMenu) || IsBossActive())
 	{
 		return 1.0f;
 	}
@@ -344,6 +544,16 @@ float AShootGameMode::GetSurvivedTime() const
 	return GetWorld()->GetTimeSeconds() - _playStartTime;
 }
 
+float AShootGameMode::GetMasterVolume() const
+{
+	return _masterVolume;
+}
+
+bool AShootGameMode::IsPauseMenuOpen() const
+{
+	return _gameState == EShootGameState::PauseMenu;
+}
+
 void AShootGameMode::ConfigureShipData()
 {
 	_falconData.ShipType = EPlayerShipType::Falcon;
@@ -353,6 +563,7 @@ void AShootGameMode::ConfigureShipData()
 	_falconData.VerticalSpeed = 900.0f;
 	_falconData.MaxHealth = 90.0f;
 	_falconData.BulletDamage = 16.0f;
+	_falconData.UltimateDamage = 210.0f;
 	_falconData.FireInterval = 0.08f;
 	_falconData.ShipColor = FLinearColor(0.0f, 0.55f, 1.0f, 1.0f);
 
@@ -363,8 +574,44 @@ void AShootGameMode::ConfigureShipData()
 	_titanData.VerticalSpeed = 650.0f;
 	_titanData.MaxHealth = 170.0f;
 	_titanData.BulletDamage = 34.0f;
+	_titanData.UltimateDamage = 260.0f;
 	_titanData.FireInterval = 0.18f;
 	_titanData.ShipColor = FLinearColor(1.0f, 0.22f, 0.04f, 1.0f);
+}
+
+void AShootGameMode::ConfigureEnemyStatData()
+{
+	_basicEnemyData.DisplayName = TEXT("Basic Drone");
+	_basicEnemyData.MoveSpeed = 560.0f;
+	_basicEnemyData.MaxHealth = 35.0f;
+	_basicEnemyData.ContactDamage = 14.0f;
+	_basicEnemyData.ScoreValue = 100;
+	_basicEnemyData.MeshScale = FVector(1.1f, 1.1f, 0.7f);
+	_basicEnemyData.Color = FLinearColor(0.55f, 0.9f, 1.0f, 1.0f);
+
+	_fastEnemyData.DisplayName = TEXT("Red Fang");
+	_fastEnemyData.MoveSpeed = 795.0f;
+	_fastEnemyData.MaxHealth = 28.0f;
+	_fastEnemyData.ContactDamage = 16.0f;
+	_fastEnemyData.ScoreValue = 170;
+	_fastEnemyData.MeshScale = FVector(0.86f, 0.86f, 0.5f);
+	_fastEnemyData.Color = FLinearColor(1.0f, 0.08f, 0.1f, 1.0f);
+
+	_tankEnemyData.DisplayName = TEXT("Iron Guard");
+	_tankEnemyData.MoveSpeed = 405.0f;
+	_tankEnemyData.MaxHealth = 75.0f;
+	_tankEnemyData.ContactDamage = 20.0f;
+	_tankEnemyData.ScoreValue = 260;
+	_tankEnemyData.MeshScale = FVector(1.65f, 1.65f, 1.05f);
+	_tankEnemyData.Color = FLinearColor(0.95f, 0.72f, 0.12f, 1.0f);
+
+	_bossEnemyData.DisplayName = TEXT("Command Carrier");
+	_bossEnemyData.MoveSpeed = 105.0f;
+	_bossEnemyData.MaxHealth = 760.0f;
+	_bossEnemyData.ContactDamage = 55.0f;
+	_bossEnemyData.ScoreValue = 2500;
+	_bossEnemyData.MeshScale = FVector(3.2f, 2.6f, 1.7f);
+	_bossEnemyData.Color = FLinearColor(0.95f, 0.16f, 0.1f, 1.0f);
 }
 
 void AShootGameMode::ConfigureWaveDesigns()
@@ -427,6 +674,69 @@ void AShootGameMode::ConfigureWaveDesigns()
 	_waveDesigns.Add(Wave6);
 }
 
+void AShootGameMode::LoadDataTables()
+{
+	if (_playerStatTable && _playerStatTable->GetRowStruct() == FPlayerShipData::StaticStruct())
+	{
+		if (const FPlayerShipData* FalconRow = _playerStatTable->FindRow<FPlayerShipData>(TEXT("Falcon"), TEXT("Load player stat table")))
+		{
+			_falconData = *FalconRow;
+		}
+
+		if (const FPlayerShipData* TitanRow = _playerStatTable->FindRow<FPlayerShipData>(TEXT("Titan"), TEXT("Load player stat table")))
+		{
+			_titanData = *TitanRow;
+		}
+	}
+
+	if (_enemyStatTable && _enemyStatTable->GetRowStruct() == FEnemyStatData::StaticStruct())
+	{
+		if (const FEnemyStatData* BasicRow = _enemyStatTable->FindRow<FEnemyStatData>(TEXT("Basic"), TEXT("Load enemy stat table")))
+		{
+			_basicEnemyData = *BasicRow;
+		}
+
+		if (const FEnemyStatData* FastRow = _enemyStatTable->FindRow<FEnemyStatData>(TEXT("Fast"), TEXT("Load enemy stat table")))
+		{
+			_fastEnemyData = *FastRow;
+		}
+
+		if (const FEnemyStatData* TankRow = _enemyStatTable->FindRow<FEnemyStatData>(TEXT("Tank"), TEXT("Load enemy stat table")))
+		{
+			_tankEnemyData = *TankRow;
+		}
+
+		if (const FEnemyStatData* BossRow = _enemyStatTable->FindRow<FEnemyStatData>(TEXT("Boss"), TEXT("Load enemy stat table")))
+		{
+			_bossEnemyData = *BossRow;
+		}
+	}
+
+	if (_waveDesignTable && _waveDesignTable->GetRowStruct() == FWaveDesign::StaticStruct())
+	{
+		TArray<FWaveDesign*> WaveRows;
+		_waveDesignTable->GetAllRows<FWaveDesign>(TEXT("Load wave design table"), WaveRows);
+		if (WaveRows.Num() > 0)
+		{
+			_waveDesigns.Empty();
+			for (const FWaveDesign* WaveRow : WaveRows)
+			{
+				if (WaveRow)
+				{
+					_waveDesigns.Add(*WaveRow);
+				}
+			}
+
+			_waveDesigns.Sort([](const FWaveDesign& A, const FWaveDesign& B)
+			{
+				return A.WaveNumber < B.WaveNumber;
+			});
+
+			_finalBossWave = _waveDesigns.Last().WaveNumber;
+		}
+	}
+}
+
 void AShootGameMode::ApplySelectedShipToPlayer()
 {
 	ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0));
@@ -470,6 +780,26 @@ void AShootGameMode::UpdateInputMode()
 		return;
 	}
 
+	if (_gameState == EShootGameState::PauseMenu)
+	{
+		AShootPlayerController* ShootPlayerController = Cast<AShootPlayerController>(PlayerController);
+		if (ShootPlayerController)
+		{
+			ShootPlayerController->ApplyPauseInputMode();
+			return;
+		}
+
+		PlayerController->bShowMouseCursor = true;
+		PlayerController->bEnableClickEvents = true;
+		PlayerController->bEnableMouseOverEvents = true;
+
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		PlayerController->SetInputMode(InputMode);
+		return;
+	}
+
 	AShootPlayerController* ShootPlayerController = Cast<AShootPlayerController>(PlayerController);
 	if (ShootPlayerController)
 	{
@@ -500,6 +830,13 @@ void AShootGameMode::StartWave()
 	}
 
 	_waveStartTime = GetWorld()->GetTimeSeconds();
+	_killsThisWave = 0;
+	_pendingUltimateReadyWave = 0;
+	GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
+	if (ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0)))
+	{
+		Player->ResetUltimateForWave();
+	}
 
 	GetWorldTimerManager().ClearTimer(_enemySpawnTimerHandle);
 	GetWorldTimerManager().SetTimer(_enemySpawnTimerHandle, this, &AShootGameMode::SpawnEnemy, GetCurrentSpawnInterval(), true, 0.2f);
@@ -534,6 +871,9 @@ void AShootGameMode::SpawnEnemy()
 	}
 
 	const FWaveDesign& WaveDesign = GetCurrentWaveDesign();
+	const float SpeedScale = WaveDesign.BasicEnemySpeed > 0.0f ? WaveDesign.BasicEnemySpeed / 560.0f : 1.0f;
+	const float HealthScale = WaveDesign.BasicEnemyHealth > 0.0f ? WaveDesign.BasicEnemyHealth / 35.0f : 1.0f;
+	const float DamageScale = WaveDesign.BasicEnemyDamage > 0.0f ? WaveDesign.BasicEnemyDamage / 14.0f : 1.0f;
 	for (int32 SpawnIndex = 0; SpawnIndex < WaveDesign.EnemiesPerSpawn; ++SpawnIndex)
 	{
 		FVector SpawnLocation = GetSpawnLocation(1550.0f + SpawnIndex * 170.0f);
@@ -549,34 +889,34 @@ void AShootGameMode::SpawnEnemy()
 		if (Roll < WaveDesign.TankEnemyChance)
 		{
 			Enemy->InitializeEnemy(
-				WaveDesign.BasicEnemySpeed * 0.72f,
-				WaveDesign.BasicEnemyHealth * 2.15f,
-				WaveDesign.BasicEnemyDamage * 1.45f,
-				260,
-				FVector(1.65f, 1.65f, 1.05f),
-				FLinearColor(0.95f, 0.72f, 0.12f, 1.0f));
+				_tankEnemyData.MoveSpeed * SpeedScale,
+				_tankEnemyData.MaxHealth * HealthScale,
+				_tankEnemyData.ContactDamage * DamageScale,
+				_tankEnemyData.ScoreValue,
+				_tankEnemyData.MeshScale,
+				_tankEnemyData.Color);
 			continue;
 		}
 
 		if (Roll < WaveDesign.TankEnemyChance + WaveDesign.FastEnemyChance)
 		{
 			Enemy->InitializeEnemy(
-				WaveDesign.BasicEnemySpeed * 1.42f,
-				WaveDesign.BasicEnemyHealth * 0.78f,
-				WaveDesign.BasicEnemyDamage * 1.1f,
-				170,
-				FVector(0.86f, 0.86f, 0.5f),
-				FLinearColor(1.0f, 0.08f, 0.1f, 1.0f));
+				_fastEnemyData.MoveSpeed * SpeedScale,
+				_fastEnemyData.MaxHealth * HealthScale,
+				_fastEnemyData.ContactDamage * DamageScale,
+				_fastEnemyData.ScoreValue,
+				_fastEnemyData.MeshScale,
+				_fastEnemyData.Color);
 			continue;
 		}
 
 		Enemy->InitializeEnemy(
-			WaveDesign.BasicEnemySpeed,
-			WaveDesign.BasicEnemyHealth,
-			WaveDesign.BasicEnemyDamage,
-			100,
-			FVector(1.1f, 1.1f, 0.7f),
-			FLinearColor(0.55f, 0.9f, 1.0f, 1.0f));
+			_basicEnemyData.MoveSpeed * SpeedScale,
+			_basicEnemyData.MaxHealth * HealthScale,
+			_basicEnemyData.ContactDamage * DamageScale,
+			_basicEnemyData.ScoreValue,
+			_basicEnemyData.MeshScale,
+			_basicEnemyData.Color);
 	}
 }
 
@@ -590,14 +930,31 @@ void AShootGameMode::SpawnBoss()
 	GetWorldTimerManager().ClearTimer(_enemySpawnTimerHandle);
 	GetWorldTimerManager().ClearTimer(_waveTimerHandle);
 	ClearEnemies();
+	_killsThisWave = 0;
+	_pendingUltimateReadyWave = 0;
+	GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
+	if (ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0)))
+	{
+		Player->ResetUltimateForWave();
+	}
 
 	const FVector SpawnLocation = GetSpawnLocation(1850.0f);
 	const FRotator SpawnRotation(0.0f, 180.0f, 0.0f);
 	_bossEnemy = GetWorld()->SpawnActor<ABossEnemy>(_bossClass, SpawnLocation, SpawnRotation);
+	if (_bossEnemy)
+	{
+		_bossEnemy->InitializeEnemy(
+			_bossEnemyData.MoveSpeed,
+			_bossEnemyData.MaxHealth,
+			_bossEnemyData.ContactDamage,
+			_bossEnemyData.ScoreValue,
+			_bossEnemyData.MeshScale,
+			_bossEnemyData.Color);
+	}
 
 	if (_bossWarningSound)
 	{
-		UGameplayStatics::PlaySound2D(this, _bossWarningSound, 0.85f);
+		PlayVoiceSound(_bossWarningSound);
 	}
 }
 
@@ -612,6 +969,293 @@ void AShootGameMode::ClearEnemies()
 			Enemy->Destroy();
 		}
 	}
+}
+
+void AShootGameMode::PlayKillCallout(bool IsBoss)
+{
+	if (IsBoss)
+	{
+		PlayCalloutSound(_bossCutSound);
+		PlayCalloutSound(_bossClearSound, 2.0f);
+		return;
+	}
+
+	_killsThisWave++;
+
+	USoundBase* CalloutSound = nullptr;
+	switch (_killsThisWave)
+	{
+	case 1:
+		CalloutSound = _firstKillSound;
+		break;
+	case 2:
+		CalloutSound = _doubleKillSound;
+		break;
+	case 3:
+		CalloutSound = _tripleKillSound;
+		break;
+	case 4:
+		CalloutSound = _quadraKillSound;
+		break;
+	case 5:
+		CalloutSound = _pentaKillSound;
+		break;
+	case 6:
+		CalloutSound = _rampageSound;
+		break;
+	default:
+		CalloutSound = _gotchaSound;
+		break;
+	}
+
+	if (CalloutSound)
+	{
+		PlayCalloutSound(CalloutSound);
+	}
+}
+
+void AShootGameMode::PlayMenuClickSound()
+{
+	if (_clickSound && _gameState != EShootGameState::Playing)
+	{
+		PlayVoiceSound(_clickSound);
+	}
+}
+
+void AShootGameMode::PlayVoiceSound(USoundBase* Sound, float ExtraDelay)
+{
+	if (!Sound || !GetWorld())
+	{
+		return;
+	}
+
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (_voiceSoundQueue.Num() == 0 && !GetWorldTimerManager().IsTimerActive(_voiceDelayTimerHandle) && (!_voiceAudioComponent || !_voiceAudioComponent->IsPlaying()))
+	{
+		_nextVoiceSoundTime = Now;
+	}
+
+	const float StartTime = FMath::Max(Now, _nextVoiceSoundTime) + FMath::Max(0.0f, ExtraDelay);
+	const float Duration = FMath::Max(0.05f, Sound->GetDuration());
+	_nextVoiceSoundTime = StartTime + Duration;
+
+	_voiceSoundQueue.Add(Sound);
+	_voiceDelayQueue.Add(FMath::Max(0.0f, ExtraDelay));
+	_voiceImportantQueue.Add(false);
+	PlayNextVoiceSound();
+}
+
+void AShootGameMode::PlayImportantVoiceSound(USoundBase* Sound)
+{
+	if (!Sound || !GetWorld())
+	{
+		return;
+	}
+
+	if (GetWorldTimerManager().IsTimerActive(_voiceDelayTimerHandle))
+	{
+		GetWorldTimerManager().ClearTimer(_voiceDelayTimerHandle);
+	}
+
+	_voiceSoundQueue.Insert(Sound, 0);
+	_voiceDelayQueue.Insert(0.0f, 0);
+	_voiceImportantQueue.Insert(true, 0);
+	PlayNextVoiceSound();
+}
+
+void AShootGameMode::PlayCalloutSound(USoundBase* Sound, float ExtraDelay)
+{
+	if (!Sound || !GetWorld())
+	{
+		return;
+	}
+
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (_calloutSoundQueue.Num() == 0 && !GetWorldTimerManager().IsTimerActive(_calloutDelayTimerHandle) && (!_calloutAudioComponent || !_calloutAudioComponent->IsPlaying()))
+	{
+		_nextCalloutSoundTime = Now;
+	}
+
+	const float StartTime = FMath::Max(Now, _nextCalloutSoundTime) + FMath::Max(0.0f, ExtraDelay);
+	const float Duration = FMath::Max(0.05f, Sound->GetDuration());
+	_nextCalloutSoundTime = StartTime + Duration;
+
+	_calloutSoundQueue.Add(Sound);
+	_calloutDelayQueue.Add(FMath::Max(0.0f, ExtraDelay));
+	PlayNextCalloutSound();
+}
+
+void AShootGameMode::PlayNextVoiceSound()
+{
+	if (!GetWorld() || _voiceSoundQueue.Num() == 0)
+	{
+		return;
+	}
+
+	if (_voiceAudioComponent && _voiceAudioComponent->IsPlaying())
+	{
+		return;
+	}
+
+	if (GetWorldTimerManager().IsTimerActive(_voiceDelayTimerHandle))
+	{
+		return;
+	}
+
+	const bool IsImportantVoice = _voiceImportantQueue.IsValidIndex(0) && _voiceImportantQueue[0];
+	if (IsImportantVoice && HasBlockingCalloutSound())
+	{
+		return;
+	}
+
+	const float Delay = _voiceDelayQueue.IsValidIndex(0) ? _voiceDelayQueue[0] : 0.0f;
+	if (Delay > 0.0f)
+	{
+		_voiceDelayQueue[0] = 0.0f;
+		GetWorldTimerManager().SetTimer(_voiceDelayTimerHandle, this, &AShootGameMode::PlayNextVoiceSound, Delay, false);
+		return;
+	}
+
+	USoundBase* Sound = _voiceSoundQueue[0];
+	_voiceSoundQueue.RemoveAt(0);
+	if (_voiceDelayQueue.Num() > 0)
+	{
+		_voiceDelayQueue.RemoveAt(0);
+	}
+	if (_voiceImportantQueue.Num() > 0)
+	{
+		_voiceImportantQueue.RemoveAt(0);
+	}
+
+	if (!Sound)
+	{
+		PlayNextVoiceSound();
+		return;
+	}
+
+	if (_voiceAudioComponent)
+	{
+		_voiceAudioComponent->SetSound(Sound);
+		_voiceAudioComponent->SetVolumeMultiplier(1.0f);
+		_voiceAudioComponent->Play(0.0f);
+		return;
+	}
+
+	UGameplayStatics::PlaySound2D(this, Sound, 1.0f);
+	PlayNextVoiceSound();
+}
+
+void AShootGameMode::PlayNextCalloutSound()
+{
+	if (!GetWorld() || _calloutSoundQueue.Num() == 0)
+	{
+		return;
+	}
+
+	if (_calloutAudioComponent && _calloutAudioComponent->IsPlaying())
+	{
+		return;
+	}
+
+	if (GetWorldTimerManager().IsTimerActive(_calloutDelayTimerHandle))
+	{
+		return;
+	}
+
+	const float Delay = _calloutDelayQueue.IsValidIndex(0) ? _calloutDelayQueue[0] : 0.0f;
+	if (Delay > 0.0f)
+	{
+		_calloutDelayQueue[0] = 0.0f;
+		GetWorldTimerManager().SetTimer(_calloutDelayTimerHandle, this, &AShootGameMode::PlayNextCalloutSound, Delay, false);
+		return;
+	}
+
+	USoundBase* Sound = _calloutSoundQueue[0];
+	_calloutSoundQueue.RemoveAt(0);
+	if (_calloutDelayQueue.Num() > 0)
+	{
+		_calloutDelayQueue.RemoveAt(0);
+	}
+
+	if (!Sound)
+	{
+		PlayNextCalloutSound();
+		return;
+	}
+
+	if (_calloutAudioComponent)
+	{
+		_calloutAudioComponent->SetSound(Sound);
+		_calloutAudioComponent->SetVolumeMultiplier(1.0f);
+		_calloutAudioComponent->Play(0.0f);
+		return;
+	}
+
+	UGameplayStatics::PlaySound2D(this, Sound, 1.0f);
+	PlayNextCalloutSound();
+}
+
+float AShootGameMode::GetVoiceQueueDelay(float ExtraDelay) const
+{
+	if (!GetWorld())
+	{
+		return FMath::Max(0.0f, ExtraDelay);
+	}
+
+	const float Now = GetWorld()->GetTimeSeconds();
+	return FMath::Max(0.0f, _nextVoiceSoundTime - Now) + FMath::Max(0.0f, ExtraDelay);
+}
+
+float AShootGameMode::GetCalloutQueueDelay(float ExtraDelay) const
+{
+	if (!GetWorld())
+	{
+		return FMath::Max(0.0f, ExtraDelay);
+	}
+
+	const float Now = GetWorld()->GetTimeSeconds();
+	return FMath::Max(0.0f, _nextCalloutSoundTime - Now) + FMath::Max(0.0f, ExtraDelay);
+}
+
+bool AShootGameMode::HasBlockingCalloutSound() const
+{
+	const bool IsCalloutPlaying = _calloutAudioComponent && _calloutAudioComponent->IsPlaying();
+	const bool IsCalloutDelayed = GetWorld() && GetWorldTimerManager().IsTimerActive(_calloutDelayTimerHandle);
+	return IsCalloutPlaying || IsCalloutDelayed;
+}
+
+void AShootGameMode::EnableUltimateForCurrentWave()
+{
+	if (_gameState != EShootGameState::Playing || _pendingUltimateReadyWave != _currentWave)
+	{
+		return;
+	}
+
+	ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0));
+	if (!Player || Player->IsUltimateReady())
+	{
+		return;
+	}
+
+	Player->SetUltimateReady(true);
+	PlayImportantVoiceSound(_ultimateReadySound);
+}
+
+void AShootGameMode::HandleVoiceFinished()
+{
+	PlayNextVoiceSound();
+}
+
+void AShootGameMode::HandleCalloutFinished()
+{
+	PlayNextCalloutSound();
+	PlayNextVoiceSound();
+}
+
+void AShootGameMode::QuitGameNow()
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+	UKismetSystemLibrary::QuitGame(this, PlayerController, EQuitPreference::Quit, true);
 }
 
 void AShootGameMode::LoadLeaderboard()
@@ -670,6 +1314,17 @@ void AShootGameMode::SortAndTrimLeaderboard()
 	{
 		_leaderboardEntries.SetNum(MaxLeaderboardEntries);
 	}
+}
+
+void AShootGameMode::ApplyMasterVolume()
+{
+	if (!_masterSoundMix || !_masterSoundClass)
+	{
+		return;
+	}
+
+	UGameplayStatics::SetSoundMixClassOverride(this, _masterSoundMix, _masterSoundClass, _masterVolume, 1.0f, 0.05f, true);
+	UGameplayStatics::PushSoundMixModifier(this, _masterSoundMix);
 }
 
 float AShootGameMode::GetCurrentSpawnInterval() const

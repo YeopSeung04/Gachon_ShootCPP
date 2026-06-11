@@ -16,6 +16,7 @@ public:
 
 	void ApplyMenuInputMode();
 	void ApplyGameInputMode();
+	void ApplyPauseInputMode();
 
 private:
 	void HandlePrimaryPressed();
@@ -24,6 +25,7 @@ private:
 	void HandleSelectTitan();
 	void HandleConfirm();
 	void HandleRestart();
+	void HandlePauseMenu();
 	void HandleMoveRight(float Value);
 	void HandleMoveForward(float Value);
 	void HandleRoll(float Value);

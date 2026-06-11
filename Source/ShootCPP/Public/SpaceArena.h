@@ -24,7 +24,6 @@ private:
 	static constexpr int32 StarCount = 28;
 	static constexpr float FloorSegmentSpacing = 950.0f;
 	static constexpr float GateSpacing = 1450.0f;
-	static constexpr float RecycleBehindDistance = 1800.0f;
 
 	UPROPERTY(VisibleAnywhere, Category="Arena")
 	class USceneComponent* _rootComponent;

@@ -185,7 +185,7 @@ void AEnemy::OnHit(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 		return;
 	}
 
-	Player->ApplyDamage(_contactDamage);
+	Player->ApplyEnemyDamage(_contactDamage);
 	Destroy();
 }
 
