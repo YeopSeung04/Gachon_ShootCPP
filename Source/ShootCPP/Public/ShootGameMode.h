@@ -31,6 +31,7 @@ public:
 	void DecreaseMasterVolume();
 	void HandlePrimaryClick(float ScreenX, float ScreenY);
 	void RegisterEnemyKilled(int32 ScoreValue, bool IsBoss);
+	void NotifyPlayerUltimateUsed();
 	void EndGame(bool DidWin);
 	void PlayVoiceSound(class USoundBase* Sound, float ExtraDelay = 0.0f);
 	void PlayImportantVoiceSound(class USoundBase* Sound);
@@ -51,6 +52,7 @@ public:
 private:
 	static constexpr int32 MaxLeaderboardEntries = 5;
 	static constexpr int32 KillsRequiredForUltimate = 7;
+	static constexpr float GotchaCalloutCooldown = 4.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category="Shoot|Spawn")
 	TSubclassOf<class AEnemy> _enemyClass;
@@ -65,7 +67,7 @@ private:
 	float _waveDuration = 24.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category="Shoot|Spawn")
-	int32 _finalBossWave = 6;
+	int32 _finalBossWave = 5;
 
 	UPROPERTY(EditDefaultsOnly, Category="Shoot|Data")
 	class UDataTable* _playerStatTable = nullptr;
@@ -81,6 +83,7 @@ private:
 	FTimerHandle _ultimateReadyTimerHandle;
 	FTimerHandle _voiceDelayTimerHandle;
 	FTimerHandle _calloutDelayTimerHandle;
+	FTimerHandle _levelTransitionTimerHandle;
 
 	UPROPERTY()
 	class ABossEnemy* _bossEnemy = nullptr;
@@ -166,11 +169,15 @@ private:
 
 	int32 _currentWave = 1;
 	int32 _killsThisWave = 0;
+	int32 _killsSinceLastUltimateCharge = 0;
+	int32 _ultimateChargesAwardedThisWave = 0;
+	int32 _pendingUltimateChargeCount = 0;
 	int32 _pendingUltimateReadyWave = 0;
 	float _waveStartTime = 0.0f;
 	float _playStartTime = 0.0f;
 	float _nextVoiceSoundTime = 0.0f;
 	float _nextCalloutSoundTime = 0.0f;
+	float _nextGotchaCalloutTime = 0.0f;
 	bool _didPlayerWin = false;
 	float _masterVolume = 1.0f;
 
@@ -184,6 +191,13 @@ private:
 	void ConfigureEnemyStatData();
 	void ConfigureWaveDesigns();
 	void LoadDataTables();
+	void LoadPersistedShipSelection();
+	void SavePersistedShipSelection();
+	void InitializeStateForCurrentMap();
+	void StartGameplaySession();
+	FName GetCurrentMapName() const;
+	bool IsCurrentMap(FName MapName) const;
+	void QueueLevelTransition(FName MapName);
 	void ApplySelectedShipToPlayer();
 	void EnsureSpaceArena();
 	const FWaveDesign& GetCurrentWaveDesign() const;
@@ -195,6 +209,7 @@ private:
 	void SpawnBoss();
 	void ClearEnemies();
 	void PlayKillCallout(bool IsBoss);
+	void PlayGotchaCallout();
 	void PlayMenuClickSound();
 	void PlayCalloutSound(class USoundBase* Sound, float ExtraDelay = 0.0f);
 	void PlayNextVoiceSound();
@@ -216,4 +231,13 @@ private:
 
 	UFUNCTION()
 	void HandleCalloutFinished();
+
+	UFUNCTION()
+	void OpenLobbyLevel();
+
+	UFUNCTION()
+	void OpenCharacterSelectLevel();
+
+	UFUNCTION()
+	void OpenGameplayLevel();
 };

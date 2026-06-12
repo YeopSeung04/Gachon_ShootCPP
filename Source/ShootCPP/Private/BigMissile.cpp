@@ -1,5 +1,6 @@
 #include "BigMissile.h"
 
+#include "CPlayer.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Enemy.h"
@@ -79,5 +80,13 @@ void ABigMissile::OnHit(UPrimitiveComponent* OverlappedComponent, AActor* OtherA
 	}
 
 	_damagedEnemies.Add(Enemy);
+	const float HealthBeforeDamage = Enemy->GetHealth();
 	Enemy->ApplyDamage(_damage);
+	if (HealthBeforeDamage > 0.0f && Enemy->GetHealth() <= 0.0f)
+	{
+		if (ACPlayer* Player = Cast<ACPlayer>(GetOwner()))
+		{
+			Player->HealByMaxHealthPercent(0.05f);
+		}
+	}
 }

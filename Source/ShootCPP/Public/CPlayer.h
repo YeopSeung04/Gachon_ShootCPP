@@ -24,13 +24,16 @@ public:
 	void ApplyEnemyDamage(float Damage);
 	void ApplyWallDamage(float Damage);
 	void ApplyShipData(const FPlayerShipData& ShipData);
+	void ResetForGameplayStart();
 	void StartFire();
 	void StopFire();
 	void UseUltimate();
-	void ResetUltimateForWave();
-	void SetUltimateReady(bool IsReady);
+	void AddUltimateCharge();
+	void SetUltimateChargeCount(int32 ChargeCount);
 	bool IsUltimateReady() const;
 	bool HasUsedUltimateThisWave() const;
+	bool CanChargeUltimateThisWave() const;
+	int32 GetUltimateChargeCount() const;
 	void SetMoveRightInput(float Value);
 	void SetMoveForwardInput(float Value);
 	void SetRollInput(float Value);
@@ -42,6 +45,8 @@ public:
 	bool IsFirstPersonView() const;
 	float GetHealth() const;
 	float GetMaxHealth() const;
+	bool CanReceiveDamage() const;
+	void HealByMaxHealthPercent(float Percent);
 	void AddScore(int32 ScoreAmount);
 
 private:
@@ -65,6 +70,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shoot|Component", meta=(AllowPrivateAccess="true"))
 	class UStaticMeshComponent* _rightEngineMeshComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shoot|Component", meta=(AllowPrivateAccess="true"))
+	class UPointLightComponent* _ultimateReadyLightComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shoot|Component", meta=(AllowPrivateAccess="true"))
 	class USpringArmComponent* _springArmComponent;
@@ -109,6 +117,11 @@ private:
 	class UMaterialInstanceDynamic* _shipMaterial = nullptr;
 
 	UPROPERTY()
+	class UMaterialInstanceDynamic* _cockpitMaterial = nullptr;
+
+	FLinearColor _shipColor = FLinearColor(0.05f, 0.5f, 1.0f, 1.0f);
+
+	UPROPERTY()
 	class USoundBase* _fireSound = nullptr;
 
 	UPROPERTY()
@@ -147,12 +160,12 @@ private:
 	float _rollInput = 0.0f;
 	float _fireCooldown = 0.0f;
 	float _wallDamageCooldown = 0.0f;
+	float _damageLockoutTime = 0.0f;
 	int32 _score = 0;
 	FString _shipName = TEXT("Falcon");
 	bool _isFirstPersonView = false;
 	bool _isFiring = false;
-	bool _isUltimateReady = false;
-	bool _hasUsedUltimateThisWave = false;
+	int32 _ultimateChargeCount = 0;
 	bool _hasPlayedLowHealthSound = false;
 	bool _wasRolling = false;
 	int32 _rollSoundInputSign = 0;
@@ -167,6 +180,7 @@ private:
 	void RestartGame();
 	void Fire();
 	void PlayVoiceSound(class USoundBase* Sound);
+	void UpdateUltimateVisuals();
 	void UpdateCamera();
 	void UpdateBanking(float DeltaTime);
 	void HandleArenaBounds(FVector& Location);

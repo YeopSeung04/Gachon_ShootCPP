@@ -29,32 +29,28 @@ private:
 	class USceneComponent* _rootComponent;
 
 	UPROPERTY()
-	TArray<class UStaticMeshComponent*> _floorSegments;
+	TArray<class AActor*> _floorSegments;
 
 	UPROPERTY()
-	TArray<class UStaticMeshComponent*> _leftRails;
+	TArray<class AActor*> _leftRails;
 
 	UPROPERTY()
-	TArray<class UStaticMeshComponent*> _rightRails;
+	TArray<class AActor*> _rightRails;
 
 	UPROPERTY()
-	TArray<class UStaticMeshComponent*> _gateTopBars;
+	TArray<class AActor*> _gateTopBars;
 
 	UPROPERTY()
-	TArray<class UStaticMeshComponent*> _gateLeftBars;
+	TArray<class AActor*> _gateLeftBars;
 
 	UPROPERTY()
-	TArray<class UStaticMeshComponent*> _gateRightBars;
+	TArray<class AActor*> _gateRightBars;
 
 	UPROPERTY()
-	TArray<class UStaticMeshComponent*> _stars;
+	TArray<class AActor*> _stars;
 
-	UPROPERTY()
-	class UMaterialInterface* _basicMaterial = nullptr;
-
-	void CreateFloorAndRails(UStaticMesh* CubeMesh);
-	void CreateGates(UStaticMesh* CubeMesh);
-	void CreateStars(UStaticMesh* SphereMesh);
-	void ApplyColor(UStaticMeshComponent* MeshComponent, const FLinearColor& Color);
-	void RecycleLinearComponent(UStaticMeshComponent* MeshComponent, float PlayerX, float TotalLength);
+	void CachePlacedArenaActors();
+	void CacheActorsWithTag(FName Tag, TArray<class AActor*>& OutActors) const;
+	void ApplyColor(class AActor* Actor, const FLinearColor& Color);
+	void RecycleLinearActor(class AActor* Actor, float PlayerX, float TotalLength);
 };

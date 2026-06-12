@@ -322,7 +322,7 @@ void AShootHUD::DrawUltimateStatus(ACPlayer* Player)
 	FLinearColor TextColor(0.55f, 0.58f, 0.64f, 1.0f);
 	if (Player->IsUltimateReady())
 	{
-		UltimateText = TEXT("R  ULT READY");
+		UltimateText = FString::Printf(TEXT("R  ULT READY x%d"), Player->GetUltimateChargeCount());
 		TextColor = FLinearColor(1.0f, 0.88f, 0.16f, 1.0f);
 	}
 	else if (Player->HasUsedUltimateThisWave())
@@ -557,9 +557,15 @@ void AShootHUD::HandlePauseClick(AShootGameMode* GameMode, FName BoxName)
 
 void AShootHUD::HandleGameOverClick(AShootGameMode* GameMode, FName BoxName)
 {
-	if (BoxName == GameOverRestartHitBoxName || BoxName == GameOverLobbyHitBoxName)
+	if (BoxName == GameOverRestartHitBoxName)
 	{
 		GameMode->RestartGame();
+		return;
+	}
+
+	if (BoxName == GameOverLobbyHitBoxName)
+	{
+		GameMode->OpenLobby();
 	}
 }
 

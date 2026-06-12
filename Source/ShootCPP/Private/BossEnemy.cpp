@@ -3,13 +3,14 @@
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
 ABossEnemy::ABossEnemy()
 {
-	_speed = 105.0f;
+	_speed = 260.0f;
 	_maxHealth = 760.0f;
-	_contactDamage = 55.0f;
+	_contactDamage = 72.0f;
 	_scoreValue = 2500;
 	_isBoss = true;
 
@@ -72,6 +73,8 @@ void ABossEnemy::BeginPlay()
 	Super::BeginPlay();
 
 	_startLocation = GetActorLocation();
+	_reactorCoreMaterial = _reactorCoreMeshComponent ? _reactorCoreMeshComponent->CreateAndSetMaterialInstanceDynamic(0) : nullptr;
+	UpdateChargeVisual(0.0f);
 }
 
 void ABossEnemy::Tick(float DeltaTime)
@@ -85,19 +88,134 @@ void ABossEnemy::Tick(float DeltaTime)
 	}
 
 	const FVector PlayerLocation = PlayerPawn->GetActorLocation();
-	FVector CurrentLocation = GetActorLocation();
-	CurrentLocation.Z = PlayerLocation.Z;
+	UpdateAttackState(DeltaTime, PlayerLocation);
+}
 
-	const FVector TargetLocation(
-		PlayerLocation.X,
-		PlayerLocation.Y + FMath::Sin(_phase * 1.35f) * 120.0f,
-		PlayerLocation.Z);
-	const FVector DirectionToPlayer = (TargetLocation - CurrentLocation).GetSafeNormal();
+void ABossEnemy::UpdateAttackState(float DeltaTime, const FVector& PlayerLocation)
+{
+	_stateTime += DeltaTime;
 
-	SetActorLocation(CurrentLocation + DirectionToPlayer * _speed * DeltaTime, true);
-
-	if (!DirectionToPlayer.IsNearlyZero())
+	switch (_attackState)
 	{
-		SetActorRotation(DirectionToPlayer.Rotation());
+	case EBossAttackState::Tracking:
+	{
+		_nextChargeTime -= DeltaTime;
+		const FVector TargetLocation(
+			PlayerLocation.X + 650.0f,
+			PlayerLocation.Y + FMath::Sin(_phase * 1.35f) * 160.0f,
+			PlayerLocation.Z);
+		MoveToward(TargetLocation, _speed, DeltaTime);
+		UpdateChargeVisual(0.0f);
+
+		if (_nextChargeTime <= 0.0f)
+		{
+			BeginCharge(PlayerLocation);
+		}
+		break;
+	}
+	case EBossAttackState::Charging:
+	{
+		constexpr float ChargeDuration = 1.35f;
+		const float ChargeRatio = FMath::Clamp(_stateTime / ChargeDuration, 0.0f, 1.0f);
+		const FVector ChargeLocation(
+			PlayerLocation.X + 720.0f,
+			PlayerLocation.Y + FMath::Sin(_phase * 2.1f) * 90.0f,
+			PlayerLocation.Z);
+		MoveToward(ChargeLocation, _speed * 0.45f, DeltaTime);
+		UpdateChargeVisual(ChargeRatio);
+
+		if (_stateTime >= ChargeDuration)
+		{
+			BeginDash(PlayerLocation);
+		}
+		break;
+	}
+	case EBossAttackState::Dashing:
+	{
+		constexpr float DashDuration = 0.82f;
+		MoveToward(_dashTargetLocation, 1650.0f, DeltaTime);
+		UpdateChargeVisual(1.0f);
+
+		if (_stateTime >= DashDuration || FVector::DistSquared(GetActorLocation(), _dashTargetLocation) <= FMath::Square(130.0f))
+		{
+			BeginRetreat(PlayerLocation);
+		}
+		break;
+	}
+	case EBossAttackState::Retreating:
+	{
+		constexpr float RetreatDuration = 1.15f;
+		MoveToward(_retreatTargetLocation, 760.0f, DeltaTime);
+		UpdateChargeVisual(FMath::Clamp(1.0f - _stateTime / RetreatDuration, 0.0f, 1.0f));
+
+		if (_stateTime >= RetreatDuration || FVector::DistSquared(GetActorLocation(), _retreatTargetLocation) <= FMath::Square(160.0f))
+		{
+			_attackState = EBossAttackState::Tracking;
+			_stateTime = 0.0f;
+			_nextChargeTime = 4.2f;
+			UpdateChargeVisual(0.0f);
+		}
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+void ABossEnemy::BeginCharge(const FVector& PlayerLocation)
+{
+	_attackState = EBossAttackState::Charging;
+	_stateTime = 0.0f;
+	_dashTargetLocation = PlayerLocation + FVector(-420.0f, 0.0f, 0.0f);
+}
+
+void ABossEnemy::BeginDash(const FVector& PlayerLocation)
+{
+	_attackState = EBossAttackState::Dashing;
+	_stateTime = 0.0f;
+	_dashTargetLocation = PlayerLocation + FVector(-520.0f, 0.0f, 0.0f);
+}
+
+void ABossEnemy::BeginRetreat(const FVector& PlayerLocation)
+{
+	_attackState = EBossAttackState::Retreating;
+	_stateTime = 0.0f;
+	_retreatTargetLocation = PlayerLocation + FVector(780.0f, FMath::Sin(_phase) * 180.0f, 0.0f);
+}
+
+void ABossEnemy::MoveToward(const FVector& TargetLocation, float MoveSpeed, float DeltaTime)
+{
+	FVector CurrentLocation = GetActorLocation();
+	FVector AdjustedTarget = TargetLocation;
+	CurrentLocation.Z = TargetLocation.Z;
+	AdjustedTarget.Z = TargetLocation.Z;
+
+	const FVector Direction = (AdjustedTarget - CurrentLocation).GetSafeNormal();
+	if (Direction.IsNearlyZero())
+	{
+		return;
+	}
+
+	SetActorLocation(CurrentLocation + Direction * MoveSpeed * DeltaTime, true);
+	SetActorRotation(Direction.Rotation());
+}
+
+void ABossEnemy::UpdateChargeVisual(float ChargeRatio)
+{
+	const float Scale = FMath::Lerp(0.62f, 1.35f, ChargeRatio);
+	if (_reactorCoreMeshComponent)
+	{
+		_reactorCoreMeshComponent->SetRelativeScale3D(FVector(Scale));
+	}
+
+	if (_reactorCoreMaterial)
+	{
+		const FLinearColor CoreColor = FLinearColor::LerpUsingHSV(
+			FLinearColor(0.95f, 0.16f, 0.1f, 1.0f),
+			FLinearColor(0.0f, 0.85f, 1.0f, 1.0f),
+			ChargeRatio);
+		_reactorCoreMaterial->SetVectorParameterValue(TEXT("Color"), CoreColor);
+		_reactorCoreMaterial->SetVectorParameterValue(TEXT("BaseColor"), CoreColor);
+		_reactorCoreMaterial->SetVectorParameterValue(TEXT("EmissiveColor"), CoreColor * FMath::Lerp(0.0f, 9.0f, ChargeRatio));
 	}
 }

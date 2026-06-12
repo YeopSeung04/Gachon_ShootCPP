@@ -7,6 +7,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "LeaderboardSaveGame.h"
+#include "ShootGameInstance.h"
 #include "ShootHUD.h"
 #include "ShootPlayerController.h"
 #include "Sound/AudioSettings.h"
@@ -16,6 +17,17 @@
 #include "SpaceArena.h"
 #include "Engine/DataTable.h"
 #include "UObject/ConstructorHelpers.h"
+
+namespace
+{
+	const FName LobbyMapName(TEXT("LobbyMap"));
+	const FName CharacterSelectMapName(TEXT("CharacterSelectMap"));
+	const FName GameplayMapName(TEXT("GameplayMap"));
+	const FName LegacyShootingMapName(TEXT("ShootingMap"));
+	const FName LobbyMapPackageName(TEXT("/Game/Maps/LobbyMap"));
+	const FName CharacterSelectMapPackageName(TEXT("/Game/Maps/CharacterSelectMap"));
+	const FName GameplayMapPackageName(TEXT("/Game/Maps/GameplayMap"));
+}
 
 AShootGameMode::AShootGameMode()
 {
@@ -185,9 +197,22 @@ void AShootGameMode::BeginPlay()
 	}
 
 	LoadLeaderboard();
+	LoadPersistedShipSelection();
+	InitializeStateForCurrentMap();
 	EnsureSpaceArena();
 	ApplySelectedShipToPlayer();
 	UpdateInputMode();
+
+	if (_gameState == EShootGameState::Playing)
+	{
+		StartGameplaySession();
+		return;
+	}
+
+	if (_gameState == EShootGameState::ShipSelect)
+	{
+		PlayVoiceSound(_selectCharacterSound);
+	}
 }
 
 void AShootGameMode::OpenLobby()
@@ -198,6 +223,12 @@ void AShootGameMode::OpenLobby()
 	}
 
 	PlayMenuClickSound();
+	if (!IsCurrentMap(LobbyMapName) && !IsCurrentMap(LegacyShootingMapName))
+	{
+		QueueLevelTransition(LobbyMapName);
+		return;
+	}
+
 	_gameState = EShootGameState::Lobby;
 	UpdateInputMode();
 }
@@ -210,6 +241,12 @@ void AShootGameMode::OpenDashboard()
 	}
 
 	PlayMenuClickSound();
+	if (!IsCurrentMap(LobbyMapName) && !IsCurrentMap(LegacyShootingMapName))
+	{
+		QueueLevelTransition(LobbyMapName);
+		return;
+	}
+
 	_gameState = EShootGameState::Dashboard;
 	UpdateInputMode();
 }
@@ -222,10 +259,16 @@ void AShootGameMode::OpenShipSelect()
 	}
 
 	PlayMenuClickSound();
+	if (!IsCurrentMap(CharacterSelectMapName) && !IsCurrentMap(LegacyShootingMapName))
+	{
+		SavePersistedShipSelection();
+		QueueLevelTransition(CharacterSelectMapName);
+		return;
+	}
+
 	_gameState = EShootGameState::ShipSelect;
 	ApplySelectedShipToPlayer();
 	UpdateInputMode();
-	PlayVoiceSound(_selectCharacterSound);
 }
 
 void AShootGameMode::SelectFalcon()
@@ -237,6 +280,7 @@ void AShootGameMode::SelectFalcon()
 
 	PlayMenuClickSound();
 	_selectedShipData = _falconData;
+	SavePersistedShipSelection();
 	ApplySelectedShipToPlayer();
 }
 
@@ -249,6 +293,7 @@ void AShootGameMode::SelectTitan()
 
 	PlayMenuClickSound();
 	_selectedShipData = _titanData;
+	SavePersistedShipSelection();
 	ApplySelectedShipToPlayer();
 }
 
@@ -260,6 +305,18 @@ void AShootGameMode::StartSelectedGame()
 	}
 
 	PlayMenuClickSound();
+	SavePersistedShipSelection();
+	if (!IsCurrentMap(GameplayMapName) && !IsCurrentMap(LegacyShootingMapName))
+	{
+		QueueLevelTransition(GameplayMapName);
+		return;
+	}
+
+	StartGameplaySession();
+}
+
+void AShootGameMode::StartGameplaySession()
+{
 	_gameState = EShootGameState::Playing;
 	UGameplayStatics::SetGamePaused(this, false);
 	_currentWave = 1;
@@ -269,10 +326,11 @@ void AShootGameMode::StartSelectedGame()
 	ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0));
 	if (Player)
 	{
-		Player->SetActorLocation(FVector::ZeroVector + FVector(0.0f, 0.0f, 360.0f));
+		Player->SetActorLocation(FVector(0.0f, 0.0f, 360.0f), false, nullptr, ETeleportType::TeleportPhysics);
 		Player->SetActorRotation(FRotator::ZeroRotator);
 		Player->ResetInputState();
 		Player->ApplyShipData(_selectedShipData);
+		Player->ResetForGameplayStart();
 	}
 
 	StartWave();
@@ -290,7 +348,7 @@ void AShootGameMode::StartSelectedGame()
 
 void AShootGameMode::RestartGame()
 {
-	UGameplayStatics::OpenLevel(this, FName(*GetWorld()->GetName()), false);
+	UGameplayStatics::OpenLevel(this, GameplayMapPackageName, false);
 }
 
 void AShootGameMode::QuitGame()
@@ -431,7 +489,7 @@ void AShootGameMode::HandlePrimaryClick(float ScreenX, float ScreenY)
 
 		if (IsInsideRect(ScreenX, ScreenY, CenterX + 25.0f, ViewportSize.Y - 108.0f, 230.0f, 46.0f))
 		{
-			RestartGame();
+			OpenLobby();
 			return;
 		}
 	}
@@ -446,17 +504,43 @@ void AShootGameMode::RegisterEnemyKilled(int32 ScoreValue, bool IsBoss)
 	}
 
 	PlayKillCallout(IsBoss);
-	if (!IsBoss && _killsThisWave == KillsRequiredForUltimate && Player && !Player->IsUltimateReady())
+	if (!IsBoss
+		&& Player
+		&& !GetCurrentWaveDesign().IsBossWave
+		&& !Player->IsUltimateReady()
+		&& _pendingUltimateChargeCount <= 0
+		&& (_currentWave >= 4 || _ultimateChargesAwardedThisWave <= 0))
 	{
-		_pendingUltimateReadyWave = _currentWave;
-		const float ReadyDelay = FMath::Max(GetVoiceQueueDelay(0.0f), GetCalloutQueueDelay(0.0f));
-		GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
-		GetWorldTimerManager().SetTimer(_ultimateReadyTimerHandle, this, &AShootGameMode::EnableUltimateForCurrentWave, ReadyDelay, false);
+		_killsSinceLastUltimateCharge++;
+		if (_killsSinceLastUltimateCharge >= KillsRequiredForUltimate)
+		{
+			_killsSinceLastUltimateCharge = 0;
+			_ultimateChargesAwardedThisWave++;
+			Player->AddUltimateCharge();
+			PlayImportantVoiceSound(_ultimateReadySound);
+		}
 	}
 
 	if (IsBoss)
 	{
 		EndGame(true);
+	}
+}
+
+void AShootGameMode::NotifyPlayerUltimateUsed()
+{
+	if (_gameState != EShootGameState::Playing || GetCurrentWaveDesign().IsBossWave)
+	{
+		return;
+	}
+
+	if (_currentWave >= 4)
+	{
+		_killsSinceLastUltimateCharge = 0;
+		_ultimateChargesAwardedThisWave = 0;
+		_pendingUltimateChargeCount = 0;
+		_pendingUltimateReadyWave = 0;
+		GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
 	}
 }
 
@@ -473,6 +557,7 @@ void AShootGameMode::EndGame(bool DidWin)
 	GetWorldTimerManager().ClearTimer(_enemySpawnTimerHandle);
 	GetWorldTimerManager().ClearTimer(_waveTimerHandle);
 	GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
+	_pendingUltimateChargeCount = 0;
 	SaveLeaderboardEntry(DidWin);
 	UpdateInputMode();
 
@@ -606,9 +691,9 @@ void AShootGameMode::ConfigureEnemyStatData()
 	_tankEnemyData.Color = FLinearColor(0.95f, 0.72f, 0.12f, 1.0f);
 
 	_bossEnemyData.DisplayName = TEXT("Command Carrier");
-	_bossEnemyData.MoveSpeed = 105.0f;
+	_bossEnemyData.MoveSpeed = 260.0f;
 	_bossEnemyData.MaxHealth = 760.0f;
-	_bossEnemyData.ContactDamage = 55.0f;
+	_bossEnemyData.ContactDamage = 72.0f;
 	_bossEnemyData.ScoreValue = 2500;
 	_bossEnemyData.MeshScale = FVector(3.2f, 2.6f, 1.7f);
 	_bossEnemyData.Color = FLinearColor(0.95f, 0.16f, 0.1f, 1.0f);
@@ -659,19 +744,8 @@ void AShootGameMode::ConfigureWaveDesigns()
 
 	FWaveDesign Wave5;
 	Wave5.WaveNumber = 5;
-	Wave5.SpawnInterval = 0.68f;
-	Wave5.EnemiesPerSpawn = 3;
-	Wave5.BasicEnemySpeed = 860.0f;
-	Wave5.BasicEnemyHealth = 72.0f;
-	Wave5.BasicEnemyDamage = 28.0f;
-	Wave5.FastEnemyChance = 0.4f;
-	Wave5.TankEnemyChance = 0.32f;
+	Wave5.IsBossWave = true;
 	_waveDesigns.Add(Wave5);
-
-	FWaveDesign Wave6;
-	Wave6.WaveNumber = 6;
-	Wave6.IsBossWave = true;
-	_waveDesigns.Add(Wave6);
 }
 
 void AShootGameMode::LoadDataTables()
@@ -737,6 +811,88 @@ void AShootGameMode::LoadDataTables()
 	}
 }
 
+void AShootGameMode::LoadPersistedShipSelection()
+{
+	const UShootGameInstance* ShootGameInstance = GetGameInstance<UShootGameInstance>();
+	if (!ShootGameInstance)
+	{
+		return;
+	}
+
+	_selectedShipData = ShootGameInstance->GetSelectedShipType() == EPlayerShipType::Titan ? _titanData : _falconData;
+}
+
+void AShootGameMode::SavePersistedShipSelection()
+{
+	UShootGameInstance* ShootGameInstance = GetGameInstance<UShootGameInstance>();
+	if (!ShootGameInstance)
+	{
+		return;
+	}
+
+	ShootGameInstance->SetSelectedShipType(_selectedShipData.ShipType);
+}
+
+void AShootGameMode::InitializeStateForCurrentMap()
+{
+	if (IsCurrentMap(CharacterSelectMapName))
+	{
+		_gameState = EShootGameState::ShipSelect;
+		return;
+	}
+
+	if (IsCurrentMap(GameplayMapName))
+	{
+		_gameState = EShootGameState::Playing;
+		return;
+	}
+
+	_gameState = EShootGameState::Lobby;
+}
+
+FName AShootGameMode::GetCurrentMapName() const
+{
+	if (!GetWorld())
+	{
+		return NAME_None;
+	}
+
+	FString MapName = GetWorld()->GetMapName();
+	MapName.RemoveFromStart(GetWorld()->StreamingLevelsPrefix);
+	return FName(*MapName);
+}
+
+bool AShootGameMode::IsCurrentMap(FName MapName) const
+{
+	return GetCurrentMapName() == MapName;
+}
+
+void AShootGameMode::QueueLevelTransition(FName MapName)
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(_levelTransitionTimerHandle);
+	if (MapName == LobbyMapName)
+	{
+		OpenLobbyLevel();
+		return;
+	}
+
+	if (MapName == CharacterSelectMapName)
+	{
+		OpenCharacterSelectLevel();
+		return;
+	}
+
+	if (MapName == GameplayMapName)
+	{
+		OpenGameplayLevel();
+	}
+}
+
 void AShootGameMode::ApplySelectedShipToPlayer()
 {
 	ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0));
@@ -753,7 +909,12 @@ void AShootGameMode::EnsureSpaceArena()
 		return;
 	}
 
-	_spaceArena = GetWorld()->SpawnActor<ASpaceArena>(ASpaceArena::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
+	TArray<AActor*> ArenaActors;
+	UGameplayStatics::GetAllActorsOfClass(this, ASpaceArena::StaticClass(), ArenaActors);
+	if (ArenaActors.Num() > 0)
+	{
+		_spaceArena = Cast<ASpaceArena>(ArenaActors[0]);
+	}
 }
 
 void AShootGameMode::UpdateInputMode()
@@ -831,12 +992,11 @@ void AShootGameMode::StartWave()
 
 	_waveStartTime = GetWorld()->GetTimeSeconds();
 	_killsThisWave = 0;
+	_killsSinceLastUltimateCharge = 0;
+	_ultimateChargesAwardedThisWave = 0;
+	_pendingUltimateChargeCount = 0;
 	_pendingUltimateReadyWave = 0;
 	GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
-	if (ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0)))
-	{
-		Player->ResetUltimateForWave();
-	}
 
 	GetWorldTimerManager().ClearTimer(_enemySpawnTimerHandle);
 	GetWorldTimerManager().SetTimer(_enemySpawnTimerHandle, this, &AShootGameMode::SpawnEnemy, GetCurrentSpawnInterval(), true, 0.2f);
@@ -931,11 +1091,14 @@ void AShootGameMode::SpawnBoss()
 	GetWorldTimerManager().ClearTimer(_waveTimerHandle);
 	ClearEnemies();
 	_killsThisWave = 0;
+	_killsSinceLastUltimateCharge = 0;
+	_ultimateChargesAwardedThisWave = 0;
+	_pendingUltimateChargeCount = 0;
 	_pendingUltimateReadyWave = 0;
 	GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
 	if (ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0)))
 	{
-		Player->ResetUltimateForWave();
+		Player->SetUltimateChargeCount(2);
 	}
 
 	const FVector SpawnLocation = GetSpawnLocation(1850.0f);
@@ -1004,14 +1167,47 @@ void AShootGameMode::PlayKillCallout(bool IsBoss)
 		CalloutSound = _rampageSound;
 		break;
 	default:
-		CalloutSound = _gotchaSound;
-		break;
+		PlayGotchaCallout();
+		return;
 	}
 
 	if (CalloutSound)
 	{
 		PlayCalloutSound(CalloutSound);
 	}
+}
+
+void AShootGameMode::PlayGotchaCallout()
+{
+	if (!_gotchaSound || !GetWorld())
+	{
+		return;
+	}
+
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (Now < _nextGotchaCalloutTime)
+	{
+		return;
+	}
+
+	const bool IsCalloutBusy = (_calloutAudioComponent && _calloutAudioComponent->IsPlaying())
+		|| GetWorldTimerManager().IsTimerActive(_calloutDelayTimerHandle)
+		|| _calloutSoundQueue.Num() > 0;
+	if (IsCalloutBusy)
+	{
+		return;
+	}
+
+	_nextGotchaCalloutTime = Now + GotchaCalloutCooldown;
+	if (_calloutAudioComponent)
+	{
+		_calloutAudioComponent->SetSound(_gotchaSound);
+		_calloutAudioComponent->SetVolumeMultiplier(1.0f);
+		_calloutAudioComponent->Play(0.0f);
+		return;
+	}
+
+	UGameplayStatics::PlaySound2D(this, _gotchaSound, 1.0f);
 }
 
 void AShootGameMode::PlayMenuClickSound()
@@ -1226,19 +1422,24 @@ bool AShootGameMode::HasBlockingCalloutSound() const
 
 void AShootGameMode::EnableUltimateForCurrentWave()
 {
-	if (_gameState != EShootGameState::Playing || _pendingUltimateReadyWave != _currentWave)
+	if (_gameState != EShootGameState::Playing || _pendingUltimateReadyWave != _currentWave || _pendingUltimateChargeCount <= 0)
 	{
 		return;
 	}
 
 	ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0));
-	if (!Player || Player->IsUltimateReady())
+	if (!Player || !Player->CanChargeUltimateThisWave())
 	{
 		return;
 	}
 
-	Player->SetUltimateReady(true);
+	Player->AddUltimateCharge();
+	_pendingUltimateChargeCount--;
 	PlayImportantVoiceSound(_ultimateReadySound);
+	if (_pendingUltimateChargeCount > 0)
+	{
+		GetWorldTimerManager().SetTimer(_ultimateReadyTimerHandle, this, &AShootGameMode::EnableUltimateForCurrentWave, 0.2f, false);
+	}
 }
 
 void AShootGameMode::HandleVoiceFinished()
@@ -1250,6 +1451,39 @@ void AShootGameMode::HandleCalloutFinished()
 {
 	PlayNextCalloutSound();
 	PlayNextVoiceSound();
+}
+
+void AShootGameMode::OpenLobbyLevel()
+{
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		PlayerController->ClientTravel(LobbyMapPackageName.ToString(), TRAVEL_Absolute);
+		return;
+	}
+
+	UGameplayStatics::OpenLevel(this, LobbyMapPackageName, false);
+}
+
+void AShootGameMode::OpenCharacterSelectLevel()
+{
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		PlayerController->ClientTravel(CharacterSelectMapPackageName.ToString(), TRAVEL_Absolute);
+		return;
+	}
+
+	UGameplayStatics::OpenLevel(this, CharacterSelectMapPackageName, false);
+}
+
+void AShootGameMode::OpenGameplayLevel()
+{
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		PlayerController->ClientTravel(GameplayMapPackageName.ToString(), TRAVEL_Absolute);
+		return;
+	}
+
+	UGameplayStatics::OpenLevel(this, GameplayMapPackageName, false);
 }
 
 void AShootGameMode::QuitGameNow()

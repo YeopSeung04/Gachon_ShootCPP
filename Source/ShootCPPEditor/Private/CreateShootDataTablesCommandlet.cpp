@@ -103,9 +103,9 @@ namespace
 
 		FEnemyStatData Boss;
 		Boss.DisplayName = TEXT("Command Carrier");
-		Boss.MoveSpeed = 105.0f;
+		Boss.MoveSpeed = 260.0f;
 		Boss.MaxHealth = 760.0f;
-		Boss.ContactDamage = 55.0f;
+		Boss.ContactDamage = 72.0f;
 		Boss.ScoreValue = 2500;
 		Boss.MeshScale = FVector(3.2f, 2.6f, 1.7f);
 		Boss.Color = FLinearColor(0.95f, 0.16f, 0.1f, 1.0f);
@@ -161,20 +161,9 @@ namespace
 
 		FWaveDesign Wave5;
 		Wave5.WaveNumber = 5;
-		Wave5.SpawnInterval = 0.68f;
-		Wave5.EnemiesPerSpawn = 3;
-		Wave5.BasicEnemySpeed = 860.0f;
-		Wave5.BasicEnemyHealth = 72.0f;
-		Wave5.BasicEnemyDamage = 28.0f;
-		Wave5.FastEnemyChance = 0.4f;
-		Wave5.TankEnemyChance = 0.32f;
-		Table->AddRow(TEXT("Wave_05"), Wave5);
-
-		FWaveDesign Wave6;
-		Wave6.WaveNumber = 6;
-		Wave6.SpawnInterval = 999.0f;
-		Wave6.IsBossWave = true;
-		Table->AddRow(TEXT("Wave_06_Boss"), Wave6);
+		Wave5.SpawnInterval = 999.0f;
+		Wave5.IsBossWave = true;
+		Table->AddRow(TEXT("Wave_05_Boss"), Wave5);
 	}
 }
 

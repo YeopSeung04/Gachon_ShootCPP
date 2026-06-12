@@ -186,7 +186,10 @@ void AEnemy::OnHit(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	}
 
 	Player->ApplyEnemyDamage(_contactDamage);
-	Destroy();
+	if (!_isBoss)
+	{
+		Destroy();
+	}
 }
 
 void AEnemy::DestroyByPlayer()

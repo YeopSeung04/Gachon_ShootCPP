@@ -34,7 +34,7 @@ void UShootUserWidget::NativeConstruct()
 	BIND_SHOOT_BUTTON("Pause_ResumeButton", ClosePauseMenu);
 
 	BIND_SHOOT_BUTTON("GameOver_RestartButton", RestartGame);
-	BIND_SHOOT_BUTTON("GameOver_LobbyButton", RestartGame);
+	BIND_SHOOT_BUTTON("GameOver_LobbyButton", OpenLobby);
 
 	UpdateRuntimeText();
 }

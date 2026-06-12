@@ -93,6 +93,13 @@ void AShootPlayerController::HandlePrimaryPressed()
 		}
 		return;
 	}
+
+	float ScreenX = 0.0f;
+	float ScreenY = 0.0f;
+	if (GetMousePosition(ScreenX, ScreenY))
+	{
+		GameMode->HandlePrimaryClick(ScreenX, ScreenY);
+	}
 }
 
 void AShootPlayerController::HandlePrimaryReleased()

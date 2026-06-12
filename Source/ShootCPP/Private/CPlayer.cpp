@@ -4,6 +4,7 @@
 #include "Bullet.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BoxComponent.h"
+#include "Components/PointLightComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputCoreTypes.h"
 #include "Kismet/GameplayStatics.h"
@@ -48,6 +49,14 @@ ACPlayer::ACPlayer()
 	_rightEngineMeshComponent->SetupAttachment(_boxComponent);
 	_rightEngineMeshComponent->SetRelativeLocation(FVector(-72.0f, 24.0f, -2.0f));
 	_rightEngineMeshComponent->SetRelativeScale3D(FVector(0.24f, 0.18f, 0.18f));
+
+	_ultimateReadyLightComponent = CreateDefaultSubobject<UPointLightComponent>(TEXT("UltimateReadyLightComponent"));
+	_ultimateReadyLightComponent->SetupAttachment(_boxComponent);
+	_ultimateReadyLightComponent->SetRelativeLocation(FVector(24.0f, 0.0f, 22.0f));
+	_ultimateReadyLightComponent->SetLightColor(FLinearColor(0.0f, 1.0f, 0.95f));
+	_ultimateReadyLightComponent->SetIntensity(0.0f);
+	_ultimateReadyLightComponent->SetAttenuationRadius(360.0f);
+	_ultimateReadyLightComponent->SetVisibility(false);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshFinder(TEXT("/Script/Engine.StaticMesh'/Engine/BasicShapes/Cone.Cone'"));
 	if (MeshFinder.Succeeded())
@@ -172,6 +181,8 @@ void ACPlayer::BeginPlay()
 
 	_health = _maxHealth;
 	_shipMaterial = _bodyMeshComponent->CreateAndSetMaterialInstanceDynamic(0);
+	_cockpitMaterial = _cockpitMeshComponent->CreateAndSetMaterialInstanceDynamic(0);
+	UpdateUltimateVisuals();
 	UpdateCamera();
 
 	APlayerController* PlayerController = Cast<APlayerController>(Controller);
@@ -202,6 +213,7 @@ void ACPlayer::Tick(float DeltaTime)
 
 	_fireCooldown = FMath::Max(0.0f, _fireCooldown - DeltaTime);
 	_wallDamageCooldown = FMath::Max(0.0f, _wallDamageCooldown - DeltaTime);
+	_damageLockoutTime = FMath::Max(0.0f, _damageLockoutTime - DeltaTime);
 
 	const float ForwardSpeed = _cruiseSpeed;
 	FVector NewLocation = GetActorLocation();
@@ -232,7 +244,7 @@ void ACPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 void ACPlayer::ApplyDamage(float Damage)
 {
-	if (IsDead() || !CanPlay())
+	if (!CanReceiveDamage())
 	{
 		return;
 	}
@@ -264,7 +276,7 @@ void ACPlayer::ApplyDamage(float Damage)
 
 void ACPlayer::ApplyEnemyDamage(float Damage)
 {
-	if (!CanPlay())
+	if (!CanReceiveDamage())
 	{
 		return;
 	}
@@ -279,7 +291,7 @@ void ACPlayer::ApplyEnemyDamage(float Damage)
 
 void ACPlayer::ApplyWallDamage(float Damage)
 {
-	if (!CanPlay())
+	if (!CanReceiveDamage())
 	{
 		return;
 	}
@@ -295,6 +307,7 @@ void ACPlayer::ApplyWallDamage(float Damage)
 void ACPlayer::ApplyShipData(const FPlayerShipData& ShipData)
 {
 	_shipName = ShipData.DisplayName;
+	_shipColor = ShipData.ShipColor;
 	_cruiseSpeed = ShipData.CruiseSpeed;
 	_strafeSpeed = ShipData.StrafeSpeed;
 	_verticalSpeed = ShipData.VerticalSpeed;
@@ -322,9 +335,24 @@ void ACPlayer::ApplyShipData(const FPlayerShipData& ShipData)
 
 	if (_shipMaterial)
 	{
-		_shipMaterial->SetVectorParameterValue(TEXT("Color"), ShipData.ShipColor);
-		_shipMaterial->SetVectorParameterValue(TEXT("BaseColor"), ShipData.ShipColor);
+		_shipMaterial->SetVectorParameterValue(TEXT("Color"), _shipColor);
+		_shipMaterial->SetVectorParameterValue(TEXT("BaseColor"), _shipColor);
 	}
+
+	UpdateUltimateVisuals();
+}
+
+void ACPlayer::ResetForGameplayStart()
+{
+	_health = _maxHealth;
+	_score = 0;
+	_fireCooldown = 0.0f;
+	_wallDamageCooldown = _wallDamageInterval;
+	_damageLockoutTime = 1.0f;
+	_hasPlayedLowHealthSound = false;
+	_ultimateChargeCount = 0;
+	ResetInputState();
+	UpdateUltimateVisuals();
 }
 
 float ACPlayer::GetHealthRatio() const
@@ -365,6 +393,25 @@ float ACPlayer::GetHealth() const
 float ACPlayer::GetMaxHealth() const
 {
 	return _maxHealth;
+}
+
+bool ACPlayer::CanReceiveDamage() const
+{
+	return !IsDead() && CanPlay() && _damageLockoutTime <= 0.0f;
+}
+
+void ACPlayer::HealByMaxHealthPercent(float Percent)
+{
+	if (IsDead() || _maxHealth <= 0.0f || Percent <= 0.0f)
+	{
+		return;
+	}
+
+	_health = FMath::Clamp(_health + _maxHealth * Percent, 0.0f, _maxHealth);
+	if (GetHealthRatio() > 0.1f)
+	{
+		_hasPlayedLowHealthSound = false;
+	}
 }
 
 void ACPlayer::AddScore(int32 ScoreAmount)
@@ -429,24 +476,36 @@ void ACPlayer::ResetInputState()
 	_isFiring = false;
 }
 
-void ACPlayer::ResetUltimateForWave()
+void ACPlayer::AddUltimateCharge()
 {
-	_hasUsedUltimateThisWave = false;
+	_ultimateChargeCount++;
+	UpdateUltimateVisuals();
 }
 
-void ACPlayer::SetUltimateReady(bool IsReady)
+void ACPlayer::SetUltimateChargeCount(int32 ChargeCount)
 {
-	_isUltimateReady = IsReady;
+	_ultimateChargeCount = FMath::Max(0, ChargeCount);
+	UpdateUltimateVisuals();
 }
 
 bool ACPlayer::IsUltimateReady() const
 {
-	return _isUltimateReady;
+	return _ultimateChargeCount > 0;
 }
 
 bool ACPlayer::HasUsedUltimateThisWave() const
 {
-	return _hasUsedUltimateThisWave;
+	return _ultimateChargeCount <= 0;
+}
+
+bool ACPlayer::CanChargeUltimateThisWave() const
+{
+	return true;
+}
+
+int32 ACPlayer::GetUltimateChargeCount() const
+{
+	return _ultimateChargeCount;
 }
 
 void ACPlayer::StartFire()
@@ -551,6 +610,35 @@ void ACPlayer::PlayVoiceSound(USoundBase* Sound)
 	UGameplayStatics::PlaySound2D(this, Sound, 1.0f);
 }
 
+void ACPlayer::UpdateUltimateVisuals()
+{
+	const FLinearColor ReadyBodyColor(1.0f, 0.86f, 0.1f, 1.0f);
+	const FLinearColor ReadyCoreColor(0.0f, 1.0f, 0.95f, 1.0f);
+	const bool bHasUltimateCharge = IsUltimateReady();
+	const FLinearColor CockpitColor = bHasUltimateCharge ? ReadyCoreColor : FLinearColor(0.06f, 0.08f, 0.1f, 1.0f);
+	const FLinearColor BodyColor = bHasUltimateCharge ? ReadyBodyColor : _shipColor;
+
+	if (_shipMaterial)
+	{
+		_shipMaterial->SetVectorParameterValue(TEXT("Color"), BodyColor);
+		_shipMaterial->SetVectorParameterValue(TEXT("BaseColor"), BodyColor);
+		_shipMaterial->SetVectorParameterValue(TEXT("EmissiveColor"), bHasUltimateCharge ? ReadyBodyColor * 6.0f : FLinearColor::Black);
+	}
+
+	if (_cockpitMaterial)
+	{
+		_cockpitMaterial->SetVectorParameterValue(TEXT("Color"), CockpitColor);
+		_cockpitMaterial->SetVectorParameterValue(TEXT("BaseColor"), CockpitColor);
+		_cockpitMaterial->SetVectorParameterValue(TEXT("EmissiveColor"), bHasUltimateCharge ? ReadyCoreColor * 8.0f : FLinearColor::Black);
+	}
+
+	if (_ultimateReadyLightComponent)
+	{
+		_ultimateReadyLightComponent->SetVisibility(bHasUltimateCharge);
+		_ultimateReadyLightComponent->SetIntensity(bHasUltimateCharge ? 4200.0f : 0.0f);
+	}
+}
+
 void ACPlayer::UseUltimate()
 {
 	AShootGameMode* GameMode = Cast<AShootGameMode>(UGameplayStatics::GetGameMode(this));
@@ -560,13 +648,17 @@ void ACPlayer::UseUltimate()
 		return;
 	}
 
-	if (!CanPlay() || !_isUltimateReady || _hasUsedUltimateThisWave || !_ultimateMissileClass)
+	if (!CanPlay() || !IsUltimateReady() || !_ultimateMissileClass)
 	{
 		return;
 	}
 
-	_isUltimateReady = false;
-	_hasUsedUltimateThisWave = true;
+	_ultimateChargeCount = FMath::Max(0, _ultimateChargeCount - 1);
+	UpdateUltimateVisuals();
+	if (GameMode)
+	{
+		GameMode->NotifyPlayerUltimateUsed();
+	}
 
 	const FVector SpawnLocation = GetActorLocation() + GetActorForwardVector() * 180.0f;
 	const FRotator SpawnRotation = GetActorRotation();
