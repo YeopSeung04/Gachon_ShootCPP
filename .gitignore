@@ -1,6 +1,9 @@
 # Visual Studio 2015 user specific files
 .vs/
 
+# JetBrains Rider/CLion local IDE settings
+.idea/
+
 # Compiled Object files
 *.slo
 *.lo
