@@ -16,6 +16,8 @@ ACPlayer::ACPlayer()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
+	// Pawn의 Root를 충돌 박스로 두고, 그 아래에 여러 기본 도형을 붙여 전투기를 만든다.
+	// 별도 모델 파일 없이도 C++ 코드만으로 기체 외형과 충돌 범위를 구성하기 위한 방식이다.
 	_boxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComponent"));
 	RootComponent = _boxComponent;
 	_boxComponent->SetBoxExtent(FVector(70.0f, 36.0f, 20.0f));
@@ -58,6 +60,8 @@ ACPlayer::ACPlayer()
 	_ultimateReadyLightComponent->SetAttenuationRadius(360.0f);
 	_ultimateReadyLightComponent->SetVisibility(false);
 
+	// Unreal 기본 Mesh/Material을 로드해서 에셋 의존도를 줄였다.
+	// 실패해도 포인터를 쓰지 않도록 Succeeded()를 확인한다.
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshFinder(TEXT("/Script/Engine.StaticMesh'/Engine/BasicShapes/Cone.Cone'"));
 	if (MeshFinder.Succeeded())
 	{
@@ -98,63 +102,73 @@ ACPlayer::ACPlayer()
 	static ConstructorHelpers::FObjectFinder<USoundBase> FireSoundFinder(TEXT("/Script/Engine.SoundWave'/Engine/VREditor/Sounds/UI/Laser_Push.Laser_Push'"));
 	if (FireSoundFinder.Succeeded())
 	{
-		_fireSound = FireSoundFinder.Object;
+		// _fireSound = FireSoundFinder.Object;
 	}
 
+	// 버튼 체크
 	static ConstructorHelpers::FObjectFinder<USoundBase> CameraSoundFinder(TEXT("/Script/Engine.SoundWave'/Engine/VREditor/Sounds/UI/Click_on_Button.Click_on_Button'"));
 	if (CameraSoundFinder.Succeeded())
 	{
 		_cameraSwitchSound = CameraSoundFinder.Object;
 	}
 
+	// 데미지 받을 때
 	static ConstructorHelpers::FObjectFinder<USoundBase> DamageSoundFinder(TEXT("/Script/Engine.SoundWave'/Engine/VREditor/Sounds/VR_click1.VR_click1'"));
 	if (DamageSoundFinder.Succeeded())
 	{
 		_damageSound = DamageSoundFinder.Object;
 	}
 
+	// 적 7킬 이상할때
 	static ConstructorHelpers::FObjectFinder<USoundBase> EnemyHitSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/PlayerHit.PlayerHit'"));
 	if (EnemyHitSoundFinder.Succeeded())
 	{
 		_enemyHitSound = EnemyHitSoundFinder.Object;
 	}
 
+	// 벽 부딪힘
 	static ConstructorHelpers::FObjectFinder<USoundBase> WallHitSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/WallHit.WallHit'"));
 	if (WallHitSoundFinder.Succeeded())
 	{
 		_wallHitSound = WallHitSoundFinder.Object;
 	}
 
+	// 딸피
 	static ConstructorHelpers::FObjectFinder<USoundBase> LowHealthSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/LowHp.LowHp'"));
 	if (LowHealthSoundFinder.Succeeded())
 	{
 		_lowHealthSound = LowHealthSoundFinder.Object;
 	}
 
+	// 죽을때
 	static ConstructorHelpers::FObjectFinder<USoundBase> DeathSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/PlayerDeath.PlayerDeath'"));
 	if (DeathSoundFinder.Succeeded())
 	{
 		_deathSound = DeathSoundFinder.Object;
 	}
 
+	// 1인칭
 	static ConstructorHelpers::FObjectFinder<USoundBase> FirstPersonSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/FirstPersonSwitch.FirstPersonSwitch'"));
 	if (FirstPersonSoundFinder.Succeeded())
 	{
 		_firstPersonSound = FirstPersonSoundFinder.Object;
 	}
 
+	// 3인칭
 	static ConstructorHelpers::FObjectFinder<USoundBase> ThirdPersonSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/ThirdPersonReturn.ThirdPersonReturn'"));
 	if (ThirdPersonSoundFinder.Succeeded())
 	{
 		_thirdPersonSound = ThirdPersonSoundFinder.Object;
 	}
 
+	// 궁
 	static ConstructorHelpers::FObjectFinder<USoundBase> UltimateFireSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/UltimateFire.UltimateFire'"));
 	if (UltimateFireSoundFinder.Succeeded())
 	{
 		_ultimateFireSound = UltimateFireSoundFinder.Object;
 	}
 
+	// 회전 소리
 	static ConstructorHelpers::FObjectFinder<USoundBase> BankSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/Bank.Bank'"));
 	if (BankSoundFinder.Succeeded())
 	{
@@ -179,6 +193,7 @@ void ACPlayer::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// BeginPlay 시점에는 컴포넌트가 월드에 등록되어 있으므로 동적 Material을 만들어 색상/발광을 런타임에 바꿀 수 있다.
 	_health = _maxHealth;
 	_shipMaterial = _bodyMeshComponent->CreateAndSetMaterialInstanceDynamic(0);
 	_cockpitMaterial = _cockpitMeshComponent->CreateAndSetMaterialInstanceDynamic(0);
@@ -201,6 +216,8 @@ void ACPlayer::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// 사망했거나 전투 상태가 아니면 이동, 발사, 벽 피해를 모두 멈춘다.
+	// 메뉴 화면에서도 Pawn은 존재하지만 게임 조작은 적용되지 않게 하기 위함이다.
 	if (IsDead())
 	{
 		return;
@@ -215,11 +232,21 @@ void ACPlayer::Tick(float DeltaTime)
 	_wallDamageCooldown = FMath::Max(0.0f, _wallDamageCooldown - DeltaTime);
 	_damageLockoutTime = FMath::Max(0.0f, _damageLockoutTime - DeltaTime);
 
+	// 입력값은 PlayerController가 저장하고, Tick에서 DeltaTime을 곱해 프레임 독립적인 이동량으로 바꾼다.
+	// _forwardInput: W/S 입력값이며 X축 이동에 사용된다. W=+1, S=-1, 입력 없음=0.
+	// _rightInput: D/A 입력값이며 Y축 이동에 사용된다. D=+1, A=-1, 입력 없음=0.
 	const float ForwardSpeed = _cruiseSpeed;
 	FVector NewLocation = GetActorLocation();
+
+	// 이동 공식: 현재 위치 + 입력값 * 속도 * DeltaTime
+	// DeltaTime을 곱하기 때문에 FPS가 높거나 낮아도 초당 이동 거리가 일정하게 유지된다.
 	NewLocation.X += _forwardInput * ForwardSpeed * DeltaTime;
 	NewLocation.Y += _rightInput * _strafeSpeed * DeltaTime;
+
+	// 계산된 위치가 전투 가능 영역 밖이면 경계 안으로 고정하고, 벽 피해도 여기서 처리한다.
 	HandleArenaBounds(NewLocation);
+
+	// 최종 계산된 위치를 Actor에 적용한다. true는 충돌을 고려하며 이동하겠다는 의미다.
 	SetActorLocation(NewLocation, true);
 
 	UpdateBanking(DeltaTime);
@@ -234,6 +261,8 @@ void ACPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+	// Project Settings의 Axis/Action 이름과 C++ 함수를 연결한다.
+	// 실제 상태 검사는 각 함수 내부에서 다시 하므로 메뉴 상태 입력이 전투 로직으로 새지 않는다.
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &ACPlayer::MoveRight);
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &ACPlayer::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("Roll"), this, &ACPlayer::Roll);
@@ -249,6 +278,7 @@ void ACPlayer::ApplyDamage(float Damage)
 		return;
 	}
 
+	// 체력은 0 아래로 내려가지 않게 고정하고, 10% 이하 경고음은 한 번만 재생한다.
 	_health = FMath::Max(0.0f, _health - Damage);
 	if (!_hasPlayedLowHealthSound && _health > 0.0f && GetHealthRatio() <= 0.1f)
 	{
@@ -266,6 +296,7 @@ void ACPlayer::ApplyDamage(float Damage)
 
 	if (IsDead())
 	{
+		// 플레이어 사망은 GameMode에 알려서 스폰 타이머 정리, 기록 저장, GameOver UI 전환을 한 곳에서 처리한다.
 		AShootGameMode* GameMode = Cast<AShootGameMode>(UGameplayStatics::GetGameMode(this));
 		if (GameMode)
 		{
@@ -306,6 +337,7 @@ void ACPlayer::ApplyWallDamage(float Damage)
 
 void ACPlayer::ApplyShipData(const FPlayerShipData& ShipData)
 {
+	// 선택한 기체 데이터가 실제 속도, 체력, 공격력, 외형 크기까지 모두 결정한다.
 	_shipName = ShipData.DisplayName;
 	_shipColor = ShipData.ShipColor;
 	_cruiseSpeed = ShipData.CruiseSpeed;
@@ -344,6 +376,7 @@ void ACPlayer::ApplyShipData(const FPlayerShipData& ShipData)
 
 void ACPlayer::ResetForGameplayStart()
 {
+	// 새 게임을 시작할 때 이전 판의 점수, 쿨타임, 입력, 궁극기 상태를 초기화한다.
 	_health = _maxHealth;
 	_score = 0;
 	_fireCooldown = 0.0f;
@@ -449,6 +482,8 @@ void ACPlayer::SetRollInput(float Value)
 	int32 CurrentRollInputSign = 0;
 	if (CanPlay())
 	{
+		// Axis 값만으로는 방향 전환 순간을 구분하기 어려워 Q/E 키 상태를 직접 확인한다.
+		// 덕분에 좌/우 롤을 새로 누를 때만 뱅킹 효과음을 낼 수 있다.
 		if (const APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 		{
 			const bool IsPressingRightRoll = PlayerController->IsInputKeyDown(EKeys::E);
@@ -594,6 +629,8 @@ void ACPlayer::PlayVoiceSound(USoundBase* Sound)
 		return;
 	}
 
+	// 음성/효과음이 서로 겹치지 않게 GameMode의 큐를 우선 사용한다.
+	// GameMode가 없는 테스트 상황에서는 바로 2D 사운드로 재생한다.
 	AShootGameMode* GameMode = Cast<AShootGameMode>(UGameplayStatics::GetGameMode(this));
 	if (GameMode)
 	{
@@ -612,6 +649,7 @@ void ACPlayer::PlayVoiceSound(USoundBase* Sound)
 
 void ACPlayer::UpdateUltimateVisuals()
 {
+	// 궁극기 충전 여부를 HUD뿐 아니라 기체 색상, 발광, 조명으로도 보여준다.
 	const FLinearColor ReadyBodyColor(1.0f, 0.86f, 0.1f, 1.0f);
 	const FLinearColor ReadyCoreColor(0.0f, 1.0f, 0.95f, 1.0f);
 	const bool bHasUltimateCharge = IsUltimateReady();
@@ -657,6 +695,7 @@ void ACPlayer::UseUltimate()
 	UpdateUltimateVisuals();
 	if (GameMode)
 	{
+		// 궁극기를 쓴 사실을 GameMode에 알려 웨이브별 충전 규칙을 갱신한다.
 		GameMode->NotifyPlayerUltimateUsed();
 	}
 
@@ -689,6 +728,7 @@ void ACPlayer::Fire()
 		return;
 	}
 
+	// 연사 속도는 _fireInterval로 제한한다. 마우스를 누르고 있어도 쿨타임이 끝난 프레임에만 탄환이 생성된다.
 	_fireCooldown = _fireInterval;
 
 	const FVector SpawnLocation = GetActorLocation() + GetActorForwardVector() * 115.0f;
@@ -711,17 +751,19 @@ void ACPlayer::Fire()
 
 void ACPlayer::UpdateCamera()
 {
+	// 같은 Pawn을 두고 SpringArm 위치만 바꿔 추적 시점과 콕핏 시점을 전환한다.
 	if (_isFirstPersonView)
 	{
-		_springArmComponent->TargetArmLength = 0.0f;
-		_springArmComponent->SocketOffset = FVector(95.0f, 0.0f, 28.0f);
+		// 1인칭
+		_springArmComponent->TargetArmLength = 0.0f; // 카메라 거리 0
+		_springArmComponent->SocketOffset = FVector(95.0f, 0.0f, 28.0f); // 위치값
 		_springArmComponent->SetRelativeRotation(FRotator::ZeroRotator);
 		_cameraComponent->SetFieldOfView(86.0f);
 		return;
 	}
-
-	_springArmComponent->TargetArmLength = 520.0f;
-	_springArmComponent->SocketOffset = FVector(-80.0f, 0.0f, 130.0f);
+	// 3인칭일때
+	_springArmComponent->TargetArmLength = 520.0f; // 만쿰 거리를 ㅈㅎ정
+	_springArmComponent->SocketOffset = FVector(-80.0f, 0.0f, 130.0f); // 위치값
 	_springArmComponent->SetRelativeRotation(FRotator(-7.0f, 0.0f, 0.0f));
 	_cameraComponent->SetFieldOfView(72.0f);
 }
@@ -741,6 +783,7 @@ void ACPlayer::HandleArenaBounds(FVector& Location)
 	constexpr float MinZ = 120.0f;
 	constexpr float MaxZ = 920.0f;
 
+	// 전투 공간 밖으로 나가지 못하게 좌우/상하를 Clamp하고, 벽에 닿으면 일정 간격으로 피해를 준다.
 	const bool HitWall = Location.Y < MinY || Location.Y > MaxY || Location.Z < MinZ || Location.Z > MaxZ;
 	Location.Y = FMath::Clamp(Location.Y, MinY, MaxY);
 	Location.Z = FMath::Clamp(Location.Z, MinZ, MaxZ);

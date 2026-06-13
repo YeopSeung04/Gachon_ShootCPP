@@ -50,6 +50,8 @@ public:
 	void AddScore(int32 ScoreAmount);
 
 private:
+	// ACPlayer는 플레이어 기체 한 대의 조작, 체력, 발사, 궁극기, 카메라를 담당한다.
+	// 게임 전체 진행(웨이브/점수/화면 전환)은 ShootGameMode가 담당하고, 여기서는 Pawn 자체 상태만 관리한다.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shoot|Component", meta=(AllowPrivateAccess="true"))
 	class UBoxComponent* _boxComponent;
 
@@ -75,10 +77,10 @@ private:
 	class UPointLightComponent* _ultimateReadyLightComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shoot|Component", meta=(AllowPrivateAccess="true"))
-	class USpringArmComponent* _springArmComponent;
+	class USpringArmComponent* _springArmComponent; // 카메라 위치 조절
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shoot|Component", meta=(AllowPrivateAccess="true"))
-	class UCameraComponent* _cameraComponent;
+	class UCameraComponent* _cameraComponent; // 카메라
 
 	UPROPERTY(EditDefaultsOnly, Category="Shoot|Combat")
 	TSubclassOf<class ABullet> _bulletClass;
@@ -121,6 +123,8 @@ private:
 
 	FLinearColor _shipColor = FLinearColor(0.05f, 0.5f, 1.0f, 1.0f);
 
+
+    // 소리
 	UPROPERTY()
 	class USoundBase* _fireSound = nullptr;
 

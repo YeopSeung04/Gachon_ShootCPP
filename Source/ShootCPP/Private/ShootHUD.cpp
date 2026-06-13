@@ -10,6 +10,8 @@
 
 namespace
 {
+	// Canvas HUD fallback에서 클릭 가능한 영역을 구분하기 위한 이름이다.
+	// UMG 위젯이 연결되어 있으면 이 HitBox 방식은 사용하지 않는다.
 	const FName LobbyPlayHitBoxName(TEXT("Lobby_Play"));
 	const FName LobbyDashboardHitBoxName(TEXT("Lobby_Dashboard"));
 	const FName LobbyExitHitBoxName(TEXT("Lobby_Exit"));
@@ -44,6 +46,7 @@ void AShootHUD::DrawHUD()
 	SyncWidgetForState(GameMode);
 	if (IsUsingWidgetForState(GameMode->GetGameState()))
 	{
+		// UMG 화면이 있으면 UMG가 메인 UI를 맡고, HUD는 적 체력바/궁극기 표시 같은 오버레이만 그린다.
 		switch (GameMode->GetGameState())
 		{
 		case EShootGameState::Playing:
@@ -58,6 +61,7 @@ void AShootHUD::DrawHUD()
 		return;
 	}
 
+	// UMG가 없는 환경에서도 게임을 확인할 수 있도록 Canvas 기반 UI를 fallback으로 직접 그린다.
 	switch (GameMode->GetGameState())
 	{
 	case EShootGameState::Lobby:
@@ -133,6 +137,7 @@ void AShootHUD::SyncWidgetForState(AShootGameMode* GameMode)
 	const TSubclassOf<UShootUserWidget> WidgetClass = GetWidgetClassForState(GameState);
 	if (!WidgetClass)
 	{
+		// 현재 상태에 연결된 UMG 클래스가 없으면 기존 위젯을 제거하고 Canvas drawing으로 넘어간다.
 		if (_activeWidget)
 		{
 			_activeWidget->RemoveFromParent();
@@ -143,6 +148,7 @@ void AShootHUD::SyncWidgetForState(AShootGameMode* GameMode)
 
 	if (_activeWidget && _activeWidgetState == GameState && _activeWidget->GetClass() == WidgetClass)
 	{
+		// 이미 현재 상태에 맞는 위젯을 쓰고 있으면 새로 만들지 않는다.
 		return;
 	}
 
@@ -434,6 +440,7 @@ void AShootHUD::DrawEnemyHealthBars()
 			continue;
 		}
 
+		// 3D 월드 좌표를 화면 좌표로 투영해 적 머리 위에 체력바를 그린다.
 		const float Width = 78.0f;
 		const float Height = 7.0f;
 		const float X = ScreenLocation.X - Width * 0.5f;
@@ -470,6 +477,7 @@ void AShootHUD::DrawShipCard(float X, float Y, float Width, float Height, const 
 
 void AShootHUD::DrawButton(float X, float Y, float Width, float Height, const FString& Text, const FLinearColor& FillColor, FName HitBoxName)
 {
+	// Canvas UI는 실제 Button 위젯이 없으므로 AddHitBox로 클릭 영역을 등록한다.
 	AddHitBox(FVector2D(X, Y), FVector2D(Width, Height), HitBoxName, true, 20);
 
 	DrawRect(FLinearColor(0.78f, 0.86f, 1.0f, 0.9f), X, Y, Width, Height);
@@ -571,6 +579,7 @@ void AShootHUD::HandleGameOverClick(AShootGameMode* GameMode, FName BoxName)
 
 void AShootHUD::DrawBar(float X, float Y, float Width, float Height, float Ratio, const FLinearColor& FillColor, const FString& Label)
 {
+	// 체력, 웨이브 진행도, 보스 체력처럼 0~1 비율로 표현되는 값을 공통 막대로 그린다.
 	DrawRect(FLinearColor(0.02f, 0.025f, 0.03f, 0.82f), X, Y, Width, Height);
 	DrawRect(FillColor, X + 2.0f, Y + 2.0f, (Width - 4.0f) * FMath::Clamp(Ratio, 0.0f, 1.0f), Height - 4.0f);
 	DrawText(Label, FLinearColor::White, X, Y - 19.0f, GEngine->GetSmallFont(), 0.9f);

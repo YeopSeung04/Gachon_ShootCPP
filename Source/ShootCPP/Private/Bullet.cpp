@@ -7,6 +7,8 @@ ABullet::ABullet()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
+	// 탄환은 충돌 박스를 Root로 사용한다.
+	// 메시보다 충돌 범위를 명확히 관리하기 쉽고, Overlap 이벤트로 적중을 처리한다.
 	_boxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComponent"));
 	RootComponent = _boxComponent;
 	_boxComponent->SetBoxExtent(FVector(36.0f, 8.0f, 8.0f));
@@ -22,6 +24,7 @@ ABullet::ABullet()
 		_bodyMeshComponent->SetStaticMesh(MeshFinder.Object);
 	}
 
+	// 월드 밖으로 멀리 날아간 탄환이 계속 남지 않도록 자동 삭제 시간을 둔다.
 	InitialLifeSpan = 3.0f;
 }
 
@@ -36,6 +39,7 @@ void ABullet::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Forward 방향으로 계속 이동한다. DeltaTime을 곱해 FPS가 달라도 속도가 일정하다.
 	SetActorLocation(GetActorLocation() + GetActorForwardVector() * _speed * DeltaTime, true);
 }
 
@@ -58,6 +62,7 @@ void ABullet::OnHit(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor
 		return;
 	}
 
+	// 일반 탄환은 한 번 맞으면 피해를 주고 즉시 사라진다.
 	Enemy->ApplyDamage(_damage);
 	Destroy();
 }

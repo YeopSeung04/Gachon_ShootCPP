@@ -19,6 +19,8 @@ public:
 	void ApplyPauseInputMode();
 
 private:
+	// Controller는 키/마우스 입력을 해석해 Player와 GameMode에 전달한다.
+	// 실제 이동/발사 계산은 Player가, 메뉴 상태 변경은 GameMode가 수행한다.
 	void HandlePrimaryPressed();
 	void HandlePrimaryReleased();
 	void HandleSelectFalcon();

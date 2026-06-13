@@ -15,6 +15,8 @@ public:
 	virtual void NotifyHitBoxClick(FName BoxName) override;
 
 protected:
+	// UMG 위젯이 있으면 해당 위젯을 화면에 올리고,
+	// 없으면 아래 Draw 함수들이 Canvas 기반 fallback UI를 직접 그린다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shoot|UMG")
 	TSubclassOf<class UShootUserWidget> LobbyWidgetClass;
 

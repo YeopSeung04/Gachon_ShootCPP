@@ -18,6 +18,8 @@ void UShootUserWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
+	// UMG Designer에서 만든 버튼 이름과 C++ 함수를 연결한다.
+	// 이름이 없는 위젯은 건너뛰므로, 일부 화면만 만들어져 있어도 크래시 없이 동작한다.
 	BIND_SHOOT_BUTTON("Lobby_PlayButton", OpenShipSelect);
 	BIND_SHOOT_BUTTON("Lobby_DashboardButton", OpenDashboard);
 	BIND_SHOOT_BUTTON("Lobby_ExitButton", QuitGame);
@@ -43,6 +45,7 @@ void UShootUserWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
+	// 점수, 체력, 웨이브 진행도는 매 프레임 변할 수 있으므로 Tick에서 화면 텍스트를 갱신한다.
 	UpdateRuntimeText();
 }
 
@@ -218,6 +221,8 @@ void UShootUserWidget::UpdateRuntimeText()
 	const ACPlayer* Player = GetShootPlayer();
 	const AShootGameMode* GameMode = GetShootGameMode();
 
+	// 위젯 이름으로 TextBlock/ProgressBar를 찾아 현재 게임 상태를 반영한다.
+	// C++ 로직은 데이터를 제공하고, UMG는 시각 배치를 담당하는 구조다.
 	if (Player)
 	{
 		SetTextByName(TEXT("Combat_HealthText"), FText::FromString(FString::Printf(TEXT("HP %.0f / %.0f"), Player->GetHealth(), Player->GetMaxHealth())));
@@ -270,6 +275,7 @@ FText UShootUserWidget::BuildLeaderboardText(const TArray<FLeaderboardEntry>& En
 
 	FString Result;
 	const int32 EntryCount = FMath::Min(Entries.Num(), 5);
+	// 저장된 리더보드 배열을 UI에서 바로 표시할 수 있는 여러 줄 문자열로 변환한다.
 	for (int32 Index = 0; Index < EntryCount; ++Index)
 	{
 		const FLeaderboardEntry& Entry = Entries[Index];

@@ -11,6 +11,8 @@ AEnemy::AEnemy()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
+	// 적도 플레이어처럼 기본 도형을 조합해 만든다.
+	// C++ 생성자에서 컴포넌트를 만들면 Blueprint 없이도 월드에 바로 Spawn할 수 있다.
 	_boxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComponent"));
 	RootComponent = _boxComponent;
 	_boxComponent->SetBoxExtent(FVector(55.0f, 55.0f, 35.0f));
@@ -80,6 +82,7 @@ void AEnemy::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Spawn 직후 현재 최대 체력으로 시작하고, 색상 변경용 동적 Material을 만든다.
 	_health = _maxHealth;
 	_enemyMaterial = _bodyMeshComponent->CreateAndSetMaterialInstanceDynamic(0);
 	_boxComponent->OnComponentBeginOverlap.AddDynamic(this, &AEnemy::OnHit);
@@ -100,6 +103,7 @@ void AEnemy::Tick(float DeltaTime)
 	FVector CurrentLocation = GetActorLocation();
 	CurrentLocation.Z = PlayerLocation.Z;
 
+	// 플레이어의 X/Y 위치를 향해 추적한다. Z는 플레이어 높이에 맞춰 2.5D 슈팅처럼 움직인다.
 	const FVector DirectionToPlayer = FVector(
 		PlayerLocation.X - CurrentLocation.X,
 		PlayerLocation.Y - CurrentLocation.Y,
@@ -114,12 +118,14 @@ void AEnemy::Tick(float DeltaTime)
 
 	if (GetActorLocation().X < PlayerLocation.X - 2200.0f)
 	{
+		// 플레이어 뒤로 멀리 지나간 적은 게임에 영향이 없으므로 삭제해 Actor 수를 줄인다.
 		Destroy();
 	}
 }
 
 void AEnemy::InitializeEnemy(float Speed, float MaxHealth, float ContactDamage, int32 ScoreValue, const FVector& MeshScale, const FLinearColor& Color)
 {
+	// GameMode가 웨이브 난이도와 적 타입에 맞춰 이 함수로 능력치와 외형을 주입한다.
 	_speed = Speed;
 	_maxHealth = MaxHealth;
 	_health = _maxHealth;
@@ -139,6 +145,8 @@ void AEnemy::InitializeEnemy(float Speed, float MaxHealth, float ContactDamage, 
 
 void AEnemy::ApplyDamage(float Damage)
 {
+	// 탄환/궁극기에서 호출되는 피해 처리다.
+	// 체력이 0 이하가 되면 GameMode에 처치 사실을 알리고 점수/콜아웃 처리를 맡긴다.
 	_health -= Damage;
 	if (_hitSound)
 	{
@@ -188,6 +196,8 @@ void AEnemy::OnHit(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	Player->ApplyEnemyDamage(_contactDamage);
 	if (!_isBoss)
 	{
+		// 일반 적은 플레이어와 부딪히면 피해를 주고 사라진다.
+		// 보스는 충돌 후에도 전투를 계속해야 하므로 예외로 둔다.
 		Destroy();
 	}
 }

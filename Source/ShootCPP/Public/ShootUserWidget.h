@@ -11,6 +11,8 @@ class SHOOTCPP_API UShootUserWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	// UMG Blueprint에서 버튼을 누르거나 텍스트/바 값을 읽을 때 호출되는 C++ 연결 클래스다.
+	// UI는 이 클래스를 통해 GameMode와 Player의 현재 상태를 가져온다.
 	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 

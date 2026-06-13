@@ -20,6 +20,7 @@
 
 namespace
 {
+	// 레벨 이름을 상수로 모아 두면 오타로 인한 이동 실패를 줄일 수 있다.
 	const FName LobbyMapName(TEXT("LobbyMap"));
 	const FName CharacterSelectMapName(TEXT("CharacterSelectMap"));
 	const FName GameplayMapName(TEXT("GameplayMap"));
@@ -31,6 +32,8 @@ namespace
 
 AShootGameMode::AShootGameMode()
 {
+	// GameMode는 이 프로젝트의 중앙 관리자다.
+	// 기본 Pawn/HUD/Controller와 적 클래스를 지정해 레벨마다 같은 규칙으로 게임이 시작되게 한다.
 	DefaultPawnClass = ACPlayer::StaticClass();
 	HUDClass = AShootHUD::StaticClass();
 	PlayerControllerClass = AShootPlayerController::StaticClass();
@@ -58,6 +61,8 @@ AShootGameMode::AShootGameMode()
 	ConfigureShipData();
 	ConfigureEnemyStatData();
 	ConfigureWaveDesigns();
+	// C++ 기본값을 먼저 만든 뒤 DataTable을 읽는다.
+	// DataTable이 없거나 구조가 다르면 기본값으로도 게임이 실행된다.
 	LoadDataTables();
 	_selectedShipData = _falconData;
 
@@ -85,84 +90,99 @@ AShootGameMode::AShootGameMode()
 		_failSound = FailSoundFinder.Object;
 	}
 
+	// 1킬
 	static ConstructorHelpers::FObjectFinder<USoundBase> FirstKillSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/FirstKill.FirstKill'"));
 	if (FirstKillSoundFinder.Succeeded())
 	{
 		_firstKillSound = FirstKillSoundFinder.Object;
 	}
 
+	// 2킬
 	static ConstructorHelpers::FObjectFinder<USoundBase> DoubleKillSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/DoubleKill.DoubleKill'"));
 	if (DoubleKillSoundFinder.Succeeded())
 	{
 		_doubleKillSound = DoubleKillSoundFinder.Object;
 	}
 
+	// 3
 	static ConstructorHelpers::FObjectFinder<USoundBase> TripleKillSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/TripleKill.TripleKill'"));
 	if (TripleKillSoundFinder.Succeeded())
 	{
 		_tripleKillSound = TripleKillSoundFinder.Object;
 	}
 
+
+	//4
 	static ConstructorHelpers::FObjectFinder<USoundBase> QuadraKillSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/QuadraKill.QuadraKill'"));
 	if (QuadraKillSoundFinder.Succeeded())
 	{
 		_quadraKillSound = QuadraKillSoundFinder.Object;
 	}
 
+	//5
 	static ConstructorHelpers::FObjectFinder<USoundBase> PentaKillSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/PentaKill.PentaKill'"));
 	if (PentaKillSoundFinder.Succeeded())
 	{
 		_pentaKillSound = PentaKillSoundFinder.Object;
 	}
 
+	// 미쳐 날뛴다
 	static ConstructorHelpers::FObjectFinder<USoundBase> RampageSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/Rampage.Rampage'"));
 	if (RampageSoundFinder.Succeeded())
 	{
 		_rampageSound = RampageSoundFinder.Object;
 	}
 
+	// 7킬 이후 나오는 소리
 	static ConstructorHelpers::FObjectFinder<USoundBase> GotchaSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/Gotcha.Gotcha'"));
 	if (GotchaSoundFinder.Succeeded())
 	{
 		_gotchaSound = GotchaSoundFinder.Object;
 	}
 
+	// 보스 컷
 	static ConstructorHelpers::FObjectFinder<USoundBase> BossCutSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/BossCut.BossCut'"));
 	if (BossCutSoundFinder.Succeeded())
 	{
 		_bossCutSound = BossCutSoundFinder.Object;
 	}
 
+	// 보스 클리어
 	static ConstructorHelpers::FObjectFinder<USoundBase> BossClearSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/BossClear.BossClear'"));
 	if (BossClearSoundFinder.Succeeded())
 	{
 		_bossClearSound = BossClearSoundFinder.Object;
 	}
 
+	// 클릭 소리
 	static ConstructorHelpers::FObjectFinder<USoundBase> ClickSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/Click.Click'"));
 	if (ClickSoundFinder.Succeeded())
 	{
 		_clickSound = ClickSoundFinder.Object;
 	}
 
+	// 게임 시작
 	static ConstructorHelpers::FObjectFinder<USoundBase> GameStartSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/GameStart.GameStart'"));
 	if (GameStartSoundFinder.Succeeded())
 	{
 		_gameStartSound = GameStartSoundFinder.Object;
 	}
 
+	// 궁 충전
 	static ConstructorHelpers::FObjectFinder<USoundBase> UltimateReadySoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/UltimateReady.UltimateReady'"));
 	if (UltimateReadySoundFinder.Succeeded())
 	{
 		_ultimateReadySound = UltimateReadySoundFinder.Object;
 	}
 
+	// 게임 종료
 	static ConstructorHelpers::FObjectFinder<USoundBase> QuitSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/PlayerQuit.PlayerQuit'"));
 	if (QuitSoundFinder.Succeeded())
 	{
 		_quitSound = QuitSoundFinder.Object;
 	}
 
+	// 캐릭터 선택
 	static ConstructorHelpers::FObjectFinder<USoundBase> SelectCharacterSoundFinder(TEXT("/Script/Engine.SoundWave'/Game/Audio/SelectCharacter.SelectCharacter'"));
 	if (SelectCharacterSoundFinder.Succeeded())
 	{
@@ -174,10 +194,13 @@ void AShootGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// 런타임 SoundMix를 만들어 일시정지 메뉴의 볼륨 조절이 전체 사운드에 적용되게 한다.
 	_masterSoundMix = NewObject<USoundMix>(this, TEXT("RuntimeMasterSoundMix"));
 	_masterSoundClass = GetDefault<UAudioSettings>()->GetDefaultSoundClass();
 	ApplyMasterVolume();
 
+	// 음성 안내와 킬 콜아웃은 별도 AudioComponent로 재생한다.
+	// 끝났다는 이벤트를 받아 큐의 다음 사운드를 이어서 재생할 수 있다.
 	_voiceAudioComponent = NewObject<UAudioComponent>(this, TEXT("RuntimeVoiceAudioComponent"));
 	if (_voiceAudioComponent)
 	{
@@ -198,6 +221,7 @@ void AShootGameMode::BeginPlay()
 
 	LoadLeaderboard();
 	LoadPersistedShipSelection();
+	// 현재 열린 맵 이름으로 Lobby/ShipSelect/Playing 중 어느 상태로 시작할지 결정한다.
 	InitializeStateForCurrentMap();
 	EnsureSpaceArena();
 	ApplySelectedShipToPlayer();
@@ -219,17 +243,20 @@ void AShootGameMode::OpenLobby()
 {
 	if (_gameState == EShootGameState::Playing)
 	{
+		// 전투 중에는 실수로 로비로 빠져나가지 못하게 막는다.
 		return;
 	}
 
 	PlayMenuClickSound();
 	if (!IsCurrentMap(LobbyMapName) && !IsCurrentMap(LegacyShootingMapName))
 	{
+		// 메뉴 상태만 바꾸는 것이 아니라 필요한 레벨이 다르면 실제 맵 이동을 수행한다.
 		QueueLevelTransition(LobbyMapName);
 		return;
 	}
 
 	_gameState = EShootGameState::Lobby;
+	// 상태가 메뉴로 바뀌었으므로 마우스 커서와 UI 입력을 켠다.
 	UpdateInputMode();
 }
 
@@ -237,6 +264,7 @@ void AShootGameMode::OpenDashboard()
 {
 	if (_gameState == EShootGameState::Playing)
 	{
+		// 전투 중에는 기록 화면으로 이동하지 않는다.
 		return;
 	}
 
@@ -248,6 +276,7 @@ void AShootGameMode::OpenDashboard()
 	}
 
 	_gameState = EShootGameState::Dashboard;
+	// Dashboard는 메뉴 화면이므로 GameAndUI 입력 모드를 사용한다.
 	UpdateInputMode();
 }
 
@@ -255,18 +284,21 @@ void AShootGameMode::OpenShipSelect()
 {
 	if (_gameState == EShootGameState::Playing)
 	{
+		// 전투 도중 기체를 바꾸면 밸런스와 체력 상태가 꼬이므로 막는다.
 		return;
 	}
 
 	PlayMenuClickSound();
 	if (!IsCurrentMap(CharacterSelectMapName) && !IsCurrentMap(LegacyShootingMapName))
 	{
+		// 맵 이동 전에 현재 선택값을 GameInstance에 저장해 새 GameMode에서도 이어받게 한다.
 		SavePersistedShipSelection();
 		QueueLevelTransition(CharacterSelectMapName);
 		return;
 	}
 
 	_gameState = EShootGameState::ShipSelect;
+	// 선택 화면에서도 플레이어 기체 미리보기가 현재 선택값과 맞도록 적용한다.
 	ApplySelectedShipToPlayer();
 	UpdateInputMode();
 }
@@ -275,10 +307,12 @@ void AShootGameMode::SelectFalcon()
 {
 	if (_gameState != EShootGameState::ShipSelect)
 	{
+		// 기체 선택 화면에서만 선택 입력을 허용한다.
 		return;
 	}
 
 	PlayMenuClickSound();
+	// 내부 선택 데이터를 Falcon으로 바꾸고, 맵 이동에 대비해 GameInstance에도 저장한다.
 	_selectedShipData = _falconData;
 	SavePersistedShipSelection();
 	ApplySelectedShipToPlayer();
@@ -288,10 +322,12 @@ void AShootGameMode::SelectTitan()
 {
 	if (_gameState != EShootGameState::ShipSelect)
 	{
+		// 기체 선택 화면에서만 선택 입력을 허용한다.
 		return;
 	}
 
 	PlayMenuClickSound();
+	// 내부 선택 데이터를 Titan으로 바꾸고, 맵 이동에 대비해 GameInstance에도 저장한다.
 	_selectedShipData = _titanData;
 	SavePersistedShipSelection();
 	ApplySelectedShipToPlayer();
@@ -301,10 +337,12 @@ void AShootGameMode::StartSelectedGame()
 {
 	if (_gameState != EShootGameState::ShipSelect)
 	{
+		// 기체 선택이 끝난 뒤에만 전투를 시작할 수 있다.
 		return;
 	}
 
 	PlayMenuClickSound();
+	// GameplayMap으로 넘어가도 선택한 기체가 유지되도록 먼저 저장한다.
 	SavePersistedShipSelection();
 	if (!IsCurrentMap(GameplayMapName) && !IsCurrentMap(LegacyShootingMapName))
 	{
@@ -317,6 +355,7 @@ void AShootGameMode::StartSelectedGame()
 
 void AShootGameMode::StartGameplaySession()
 {
+	// 실제 전투 시작 지점이다. 이전 상태를 정리하고 플레이어/웨이브/입력을 새 판 기준으로 초기화한다.
 	_gameState = EShootGameState::Playing;
 	UGameplayStatics::SetGamePaused(this, false);
 	_currentWave = 1;
@@ -326,6 +365,7 @@ void AShootGameMode::StartGameplaySession()
 	ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0));
 	if (Player)
 	{
+		// 새 게임마다 플레이어를 시작 위치로 보내고, 이전 판의 입력/체력/점수를 초기화한다.
 		Player->SetActorLocation(FVector(0.0f, 0.0f, 360.0f), false, nullptr, ETeleportType::TeleportPhysics);
 		Player->SetActorRotation(FRotator::ZeroRotator);
 		Player->ResetInputState();
@@ -334,6 +374,7 @@ void AShootGameMode::StartGameplaySession()
 	}
 
 	StartWave();
+	// 전투 상태로 바뀌었으므로 마우스 커서를 숨기고 게임 입력만 받는다.
 	UpdateInputMode();
 
 	if (_gameStartSound)
@@ -348,6 +389,7 @@ void AShootGameMode::StartGameplaySession()
 
 void AShootGameMode::RestartGame()
 {
+	// 현재 상태를 복잡하게 되돌리지 않고 GameplayMap을 다시 열어 완전히 새 판으로 시작한다.
 	UGameplayStatics::OpenLevel(this, GameplayMapPackageName, false);
 }
 
@@ -356,6 +398,7 @@ void AShootGameMode::QuitGame()
 	if (_quitSound)
 	{
 		PlayVoiceSound(_quitSound);
+		// 종료 음성이 재생될 시간을 확보한 뒤 실제 QuitGame을 호출한다.
 		const float QuitDelay = GetVoiceQueueDelay(0.05f);
 		FTimerHandle QuitTimerHandle;
 		GetWorldTimerManager().SetTimer(QuitTimerHandle, this, &AShootGameMode::QuitGameNow, QuitDelay, false);
@@ -369,6 +412,7 @@ void AShootGameMode::TogglePauseMenu()
 {
 	if (_gameState == EShootGameState::Playing)
 	{
+		// Playing -> PauseMenu로 상태를 바꾸고 Unreal의 일시정지도 같이 건다.
 		_gameState = EShootGameState::PauseMenu;
 		UGameplayStatics::SetGamePaused(this, true);
 		UpdateInputMode();
@@ -389,6 +433,7 @@ void AShootGameMode::ClosePauseMenu()
 	}
 
 	PlayMenuClickSound();
+	// PauseMenu -> Playing으로 복귀한다. 입력 모드도 다시 GameOnly로 바뀐다.
 	_gameState = EShootGameState::Playing;
 	UGameplayStatics::SetGamePaused(this, false);
 	UpdateInputMode();
@@ -397,6 +442,7 @@ void AShootGameMode::ClosePauseMenu()
 void AShootGameMode::IncreaseMasterVolume()
 {
 	PlayMenuClickSound();
+	// 볼륨은 0~1 범위로 유지한다. 0.1씩 올려 Pause 메뉴에서 단계적으로 조절된다.
 	_masterVolume = FMath::Clamp(_masterVolume + 0.1f, 0.0f, 1.0f);
 	ApplyMasterVolume();
 }
@@ -404,12 +450,15 @@ void AShootGameMode::IncreaseMasterVolume()
 void AShootGameMode::DecreaseMasterVolume()
 {
 	PlayMenuClickSound();
+	// 볼륨은 0 아래로 내려가지 않도록 Clamp한다.
 	_masterVolume = FMath::Clamp(_masterVolume - 0.1f, 0.0f, 1.0f);
 	ApplyMasterVolume();
 }
 
 void AShootGameMode::HandlePrimaryClick(float ScreenX, float ScreenY)
 {
+	// Canvas HUD fallback을 위한 마우스 좌표 처리다.
+	// UMG 위젯이 없을 때도 같은 메뉴 기능을 사용할 수 있게 사각형 영역을 직접 판정한다.
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
 	int32 ViewportWidth = 1280;
 	int32 ViewportHeight = 720;
@@ -423,6 +472,7 @@ void AShootGameMode::HandlePrimaryClick(float ScreenX, float ScreenY)
 
 	if (_gameState == EShootGameState::Lobby)
 	{
+		// Lobby 화면의 버튼 영역: Play, Dashboard, Exit 순서다.
 		if (IsInsideRect(ScreenX, ScreenY, CenterX - 150.0f, 250.0f, 300.0f, 48.0f))
 		{
 			OpenShipSelect();
@@ -454,6 +504,7 @@ void AShootGameMode::HandlePrimaryClick(float ScreenX, float ScreenY)
 	if (_gameState == EShootGameState::ShipSelect)
 	{
 		const float CardWidth = 330.0f;
+		// 기체 카드 자체를 클릭 영역으로 사용한다.
 		if (IsInsideRect(ScreenX, ScreenY, CenterX - CardWidth - 26.0f, 190.0f, CardWidth, 220.0f))
 		{
 			SelectFalcon();
@@ -481,6 +532,7 @@ void AShootGameMode::HandlePrimaryClick(float ScreenX, float ScreenY)
 
 	if (_gameState == EShootGameState::GameOver)
 	{
+		// 게임오버 화면에서는 재시작 또는 로비 복귀만 허용한다.
 		if (IsInsideRect(ScreenX, ScreenY, CenterX - 255.0f, ViewportSize.Y - 108.0f, 230.0f, 46.0f))
 		{
 			RestartGame();
@@ -497,9 +549,12 @@ void AShootGameMode::HandlePrimaryClick(float ScreenX, float ScreenY)
 
 void AShootGameMode::RegisterEnemyKilled(int32 ScoreValue, bool IsBoss)
 {
+	// 모든 적 처치 결과는 이 함수로 모인다.
+	// 점수, 콜아웃, 궁극기 충전, 보스 클리어 판정을 한 곳에서 처리한다.
 	ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0));
 	if (Player)
 	{
+		// 점수는 적 자신이 아니라 GameMode를 통해 Player에 더해진다.
 		Player->AddScore(ScoreValue);
 	}
 
@@ -511,6 +566,7 @@ void AShootGameMode::RegisterEnemyKilled(int32 ScoreValue, bool IsBoss)
 		&& _pendingUltimateChargeCount <= 0
 		&& (_currentWave >= 4 || _ultimateChargesAwardedThisWave <= 0))
 	{
+		// 일반 적 처치 수를 세다가 기준치에 도달하면 궁극기 1회를 충전한다.
 		_killsSinceLastUltimateCharge++;
 		if (_killsSinceLastUltimateCharge >= KillsRequiredForUltimate)
 		{
@@ -523,6 +579,7 @@ void AShootGameMode::RegisterEnemyKilled(int32 ScoreValue, bool IsBoss)
 
 	if (IsBoss)
 	{
+		// 보스 처치가 최종 승리 조건이다.
 		EndGame(true);
 	}
 }
@@ -531,11 +588,13 @@ void AShootGameMode::NotifyPlayerUltimateUsed()
 {
 	if (_gameState != EShootGameState::Playing || GetCurrentWaveDesign().IsBossWave)
 	{
+		// 전투 중이 아니거나 보스전이면 일반 웨이브용 궁극기 충전 규칙을 적용하지 않는다.
 		return;
 	}
 
 	if (_currentWave >= 4)
 	{
+		// 후반 웨이브에서는 궁극기 사용 후 다시 처치 수를 쌓아 재충전할 수 있게 카운터를 초기화한다.
 		_killsSinceLastUltimateCharge = 0;
 		_ultimateChargesAwardedThisWave = 0;
 		_pendingUltimateChargeCount = 0;
@@ -551,6 +610,7 @@ void AShootGameMode::EndGame(bool DidWin)
 		return;
 	}
 
+	// 게임 종료 시 스폰/웨이브/궁극기 타이머를 멈추고 리더보드에 결과를 저장한다.
 	_gameState = EShootGameState::GameOver;
 	UGameplayStatics::SetGamePaused(this, false);
 	_didPlayerWin = DidWin;
@@ -558,6 +618,7 @@ void AShootGameMode::EndGame(bool DidWin)
 	GetWorldTimerManager().ClearTimer(_waveTimerHandle);
 	GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
 	_pendingUltimateChargeCount = 0;
+	// 종료 직후 결과 화면에서 바로 리더보드가 보이도록 즉시 저장한다.
 	SaveLeaderboardEntry(DidWin);
 	UpdateInputMode();
 
@@ -612,9 +673,11 @@ float AShootGameMode::GetWaveProgressRatio() const
 {
 	if ((_gameState != EShootGameState::Playing && _gameState != EShootGameState::PauseMenu) || IsBossActive())
 	{
+		// 전투가 아니거나 보스전이면 일반 웨이브 진행바를 꽉 찬 상태로 처리한다.
 		return 1.0f;
 	}
 
+	// 현재 시간과 웨이브 시작 시간의 차이를 웨이브 전체 시간으로 나누어 0~1 비율을 만든다.
 	const float Elapsed = GetWorld()->GetTimeSeconds() - _waveStartTime;
 	return FMath::Clamp(Elapsed / _waveDuration, 0.0f, 1.0f);
 }
@@ -623,9 +686,11 @@ float AShootGameMode::GetSurvivedTime() const
 {
 	if (_playStartTime <= 0.0f)
 	{
+		// 전투가 아직 시작되지 않았으면 생존 시간을 0으로 본다.
 		return 0.0f;
 	}
 
+	// 전투 시작 시각부터 현재 월드 시간까지의 차이가 생존 시간이다.
 	return GetWorld()->GetTimeSeconds() - _playStartTime;
 }
 
@@ -641,6 +706,8 @@ bool AShootGameMode::IsPauseMenuOpen() const
 
 void AShootGameMode::ConfigureShipData()
 {
+	// DataTable 로드 실패에 대비한 C++ 기본 기체 밸런스다.
+	// Falcon: 속도/연사, Titan: 체력/단발 화력으로 역할을 나눴다.
 	_falconData.ShipType = EPlayerShipType::Falcon;
 	_falconData.DisplayName = TEXT("Falcon");
 	_falconData.CruiseSpeed = 640.0f;
@@ -666,6 +733,7 @@ void AShootGameMode::ConfigureShipData()
 
 void AShootGameMode::ConfigureEnemyStatData()
 {
+	// 적 타입별 기본 밸런스다. 웨이브 데이터에서 배율을 곱해 난이도가 증가한다.
 	_basicEnemyData.DisplayName = TEXT("Basic Drone");
 	_basicEnemyData.MoveSpeed = 560.0f;
 	_basicEnemyData.MaxHealth = 35.0f;
@@ -701,6 +769,8 @@ void AShootGameMode::ConfigureEnemyStatData()
 
 void AShootGameMode::ConfigureWaveDesigns()
 {
+	// 웨이브 기본 설계다.
+	// 1~4웨이브는 일반 적 스폰, 5웨이브는 보스전으로 구성된다.
 	_waveDesigns.Empty();
 
 	FWaveDesign Wave1;
@@ -750,15 +820,19 @@ void AShootGameMode::ConfigureWaveDesigns()
 
 void AShootGameMode::LoadDataTables()
 {
+	// 에디터에서 만든 DataTable이 있으면 C++ 기본값 대신 테이블 값을 사용한다.
+	// 구조체 타입까지 확인해 잘못된 테이블 연결로 인한 런타임 오류를 줄인다.
 	if (_playerStatTable && _playerStatTable->GetRowStruct() == FPlayerShipData::StaticStruct())
 	{
 		if (const FPlayerShipData* FalconRow = _playerStatTable->FindRow<FPlayerShipData>(TEXT("Falcon"), TEXT("Load player stat table")))
 		{
+			// DataTable에 Falcon 행이 있으면 C++ 기본 Falcon 값을 교체한다.
 			_falconData = *FalconRow;
 		}
 
 		if (const FPlayerShipData* TitanRow = _playerStatTable->FindRow<FPlayerShipData>(TEXT("Titan"), TEXT("Load player stat table")))
 		{
+			// DataTable에 Titan 행이 있으면 C++ 기본 Titan 값을 교체한다.
 			_titanData = *TitanRow;
 		}
 	}
@@ -792,6 +866,7 @@ void AShootGameMode::LoadDataTables()
 		_waveDesignTable->GetAllRows<FWaveDesign>(TEXT("Load wave design table"), WaveRows);
 		if (WaveRows.Num() > 0)
 		{
+			// 테이블에 웨이브가 하나라도 있으면 기본 웨이브 배열을 지우고 테이블 기준으로 다시 구성한다.
 			_waveDesigns.Empty();
 			for (const FWaveDesign* WaveRow : WaveRows)
 			{
@@ -803,9 +878,11 @@ void AShootGameMode::LoadDataTables()
 
 			_waveDesigns.Sort([](const FWaveDesign& A, const FWaveDesign& B)
 			{
+				// DataTable 행 순서와 상관없이 WaveNumber 기준으로 진행되게 정렬한다.
 				return A.WaveNumber < B.WaveNumber;
 			});
 
+			// 마지막 행의 WaveNumber를 최종 보스 웨이브 번호로 사용한다.
 			_finalBossWave = _waveDesigns.Last().WaveNumber;
 		}
 	}
@@ -813,6 +890,7 @@ void AShootGameMode::LoadDataTables()
 
 void AShootGameMode::LoadPersistedShipSelection()
 {
+	// 맵이 바뀌면 GameMode는 새로 생성되므로, 선택한 기체는 GameInstance에 임시 보관한다.
 	const UShootGameInstance* ShootGameInstance = GetGameInstance<UShootGameInstance>();
 	if (!ShootGameInstance)
 	{
@@ -830,6 +908,7 @@ void AShootGameMode::SavePersistedShipSelection()
 		return;
 	}
 
+	// GameInstance는 맵 이동 후에도 살아 있으므로 선택한 기체 타입을 여기에 보관한다.
 	ShootGameInstance->SetSelectedShipType(_selectedShipData.ShipType);
 }
 
@@ -837,16 +916,19 @@ void AShootGameMode::InitializeStateForCurrentMap()
 {
 	if (IsCurrentMap(CharacterSelectMapName))
 	{
+		// 캐릭터 선택 맵에서 시작했다면 바로 ShipSelect 상태로 둔다.
 		_gameState = EShootGameState::ShipSelect;
 		return;
 	}
 
 	if (IsCurrentMap(GameplayMapName))
 	{
+		// 게임플레이 맵에서 시작했다면 BeginPlay 이후 StartGameplaySession이 호출된다.
 		_gameState = EShootGameState::Playing;
 		return;
 	}
 
+	// 그 외 맵은 기본적으로 로비 화면으로 본다.
 	_gameState = EShootGameState::Lobby;
 }
 
@@ -858,6 +940,7 @@ FName AShootGameMode::GetCurrentMapName() const
 	}
 
 	FString MapName = GetWorld()->GetMapName();
+	// PIE 실행 시 맵 이름 앞에 붙는 임시 prefix를 제거해 실제 맵 이름만 비교한다.
 	MapName.RemoveFromStart(GetWorld()->StreamingLevelsPrefix);
 	return FName(*MapName);
 }
@@ -877,6 +960,7 @@ void AShootGameMode::QueueLevelTransition(FName MapName)
 	GetWorldTimerManager().ClearTimer(_levelTransitionTimerHandle);
 	if (MapName == LobbyMapName)
 	{
+		// 요청받은 목적지에 맞는 실제 레벨 열기 함수를 호출한다.
 		OpenLobbyLevel();
 		return;
 	}
@@ -898,6 +982,7 @@ void AShootGameMode::ApplySelectedShipToPlayer()
 	ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0));
 	if (Player)
 	{
+		// 현재 선택된 기체 데이터를 실제 Pawn에 적용한다.
 		Player->ApplyShipData(_selectedShipData);
 	}
 }
@@ -913,12 +998,15 @@ void AShootGameMode::EnsureSpaceArena()
 	UGameplayStatics::GetAllActorsOfClass(this, ASpaceArena::StaticClass(), ArenaActors);
 	if (ArenaActors.Num() > 0)
 	{
+		// 맵 안의 첫 번째 SpaceArena를 찾아 보관한다.
 		_spaceArena = Cast<ASpaceArena>(ArenaActors[0]);
 	}
 }
 
 void AShootGameMode::UpdateInputMode()
 {
+	// 현재 게임 상태에 맞춰 마우스 커서와 입력 모드를 전환한다.
+	// 메뉴는 GameAndUI, 전투는 GameOnly, 일시정지는 GameAndUI를 사용한다.
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
 	if (!PlayerController)
 	{
@@ -990,6 +1078,7 @@ void AShootGameMode::StartWave()
 		return;
 	}
 
+	// 웨이브 시작 시 카운터를 초기화하고, 반복 스폰 타이머와 웨이브 종료 타이머를 새로 건다.
 	_waveStartTime = GetWorld()->GetTimeSeconds();
 	_killsThisWave = 0;
 	_killsSinceLastUltimateCharge = 0;
@@ -999,9 +1088,11 @@ void AShootGameMode::StartWave()
 	GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
 
 	GetWorldTimerManager().ClearTimer(_enemySpawnTimerHandle);
+	// 첫 스폰은 0.2초 뒤에 빠르게 나오고, 이후에는 웨이브별 SpawnInterval마다 반복된다.
 	GetWorldTimerManager().SetTimer(_enemySpawnTimerHandle, this, &AShootGameMode::SpawnEnemy, GetCurrentSpawnInterval(), true, 0.2f);
 
 	GetWorldTimerManager().ClearTimer(_waveTimerHandle);
+	// _waveDuration 시간이 지나면 다음 웨이브로 넘어간다.
 	GetWorldTimerManager().SetTimer(_waveTimerHandle, this, &AShootGameMode::AdvanceWave, _waveDuration, false);
 }
 
@@ -1014,6 +1105,7 @@ void AShootGameMode::AdvanceWave()
 
 	_currentWave++;
 
+	// 다음 웨이브가 보스 웨이브라면 일반 스폰을 멈추고 보스를 소환한다.
 	if (GetCurrentWaveDesign().IsBossWave)
 	{
 		SpawnBoss();
@@ -1031,21 +1123,25 @@ void AShootGameMode::SpawnEnemy()
 	}
 
 	const FWaveDesign& WaveDesign = GetCurrentWaveDesign();
+	// 웨이브 데이터는 기본 적 능력치에 곱해지는 배율 역할을 한다.
 	const float SpeedScale = WaveDesign.BasicEnemySpeed > 0.0f ? WaveDesign.BasicEnemySpeed / 560.0f : 1.0f;
 	const float HealthScale = WaveDesign.BasicEnemyHealth > 0.0f ? WaveDesign.BasicEnemyHealth / 35.0f : 1.0f;
 	const float DamageScale = WaveDesign.BasicEnemyDamage > 0.0f ? WaveDesign.BasicEnemyDamage / 14.0f : 1.0f;
 	for (int32 SpawnIndex = 0; SpawnIndex < WaveDesign.EnemiesPerSpawn; ++SpawnIndex)
 	{
+		// 여러 마리가 동시에 나올 때 X 위치를 조금씩 벌려 겹쳐 생성되는 것을 줄인다.
 		FVector SpawnLocation = GetSpawnLocation(1550.0f + SpawnIndex * 170.0f);
 		SpawnLocation.Y += FMath::RandRange(-180.0f, 180.0f);
 		const FRotator SpawnRotation(0.0f, 180.0f, 0.0f);
 		AEnemy* Enemy = GetWorld()->SpawnActor<AEnemy>(_enemyClass, SpawnLocation, SpawnRotation);
 		if (!Enemy)
 		{
+			// Spawn 실패 시 이 회차만 건너뛰고 다음 적 생성을 계속 시도한다.
 			continue;
 		}
 
 		const float Roll = FMath::FRand();
+		// 하나의 난수로 Tank -> Fast -> Basic 순서의 확률 분기를 만든다.
 		if (Roll < WaveDesign.TankEnemyChance)
 		{
 			Enemy->InitializeEnemy(
@@ -1087,6 +1183,7 @@ void AShootGameMode::SpawnBoss()
 		return;
 	}
 
+	// 보스전 시작 전 일반 적과 웨이브 타이머를 정리해 전투 목표를 보스 하나로 집중시킨다.
 	GetWorldTimerManager().ClearTimer(_enemySpawnTimerHandle);
 	GetWorldTimerManager().ClearTimer(_waveTimerHandle);
 	ClearEnemies();
@@ -1098,6 +1195,7 @@ void AShootGameMode::SpawnBoss()
 	GetWorldTimerManager().ClearTimer(_ultimateReadyTimerHandle);
 	if (ACPlayer* Player = Cast<ACPlayer>(UGameplayStatics::GetPlayerPawn(this, 0)))
 	{
+		// 보스전은 체력이 높기 때문에 시작 보상으로 궁극기 2회를 지급한다.
 		Player->SetUltimateChargeCount(2);
 	}
 
@@ -1129,6 +1227,7 @@ void AShootGameMode::ClearEnemies()
 	{
 		if (Enemy && Enemy != _bossEnemy)
 		{
+			// 보스전 전환 시 일반 적만 정리하고 보스 참조는 건드리지 않는다.
 			Enemy->Destroy();
 		}
 	}
@@ -1136,6 +1235,7 @@ void AShootGameMode::ClearEnemies()
 
 void AShootGameMode::PlayKillCallout(bool IsBoss)
 {
+	// 처치 수에 따라 First/Double/Triple 같은 음성 콜아웃을 단계적으로 재생한다.
 	if (IsBoss)
 	{
 		PlayCalloutSound(_bossCutSound);
@@ -1167,6 +1267,7 @@ void AShootGameMode::PlayKillCallout(bool IsBoss)
 		CalloutSound = _rampageSound;
 		break;
 	default:
+		// 6킬 이후부터는 쿨타임이 허용될 때 Gotcha 음성으로 반복 처리한다.
 		PlayGotchaCallout();
 		return;
 	}
@@ -1187,6 +1288,7 @@ void AShootGameMode::PlayGotchaCallout()
 	const float Now = GetWorld()->GetTimeSeconds();
 	if (Now < _nextGotchaCalloutTime)
 	{
+		// 같은 음성이 너무 자주 반복되지 않게 시간 제한을 둔다.
 		return;
 	}
 
@@ -1195,6 +1297,7 @@ void AShootGameMode::PlayGotchaCallout()
 		|| _calloutSoundQueue.Num() > 0;
 	if (IsCalloutBusy)
 	{
+		// 다른 콜아웃이 재생/대기 중이면 Gotcha를 억지로 끼워 넣지 않는다.
 		return;
 	}
 
@@ -1226,6 +1329,7 @@ void AShootGameMode::PlayVoiceSound(USoundBase* Sound, float ExtraDelay)
 	}
 
 	const float Now = GetWorld()->GetTimeSeconds();
+	// 재생 예약 시간을 계산해 사운드가 서로 덮어쓰지 않고 순서대로 나오도록 큐에 넣는다.
 	if (_voiceSoundQueue.Num() == 0 && !GetWorldTimerManager().IsTimerActive(_voiceDelayTimerHandle) && (!_voiceAudioComponent || !_voiceAudioComponent->IsPlaying()))
 	{
 		_nextVoiceSoundTime = Now;
@@ -1248,6 +1352,7 @@ void AShootGameMode::PlayImportantVoiceSound(USoundBase* Sound)
 		return;
 	}
 
+	// 궁극기 준비/발사처럼 중요한 안내는 큐 앞에 넣어 일반 안내보다 먼저 들리게 한다.
 	if (GetWorldTimerManager().IsTimerActive(_voiceDelayTimerHandle))
 	{
 		GetWorldTimerManager().ClearTimer(_voiceDelayTimerHandle);
@@ -1269,11 +1374,13 @@ void AShootGameMode::PlayCalloutSound(USoundBase* Sound, float ExtraDelay)
 	const float Now = GetWorld()->GetTimeSeconds();
 	if (_calloutSoundQueue.Num() == 0 && !GetWorldTimerManager().IsTimerActive(_calloutDelayTimerHandle) && (!_calloutAudioComponent || !_calloutAudioComponent->IsPlaying()))
 	{
+		// 콜아웃 큐가 비어 있으면 현재 시각을 기준으로 새 재생 일정을 시작한다.
 		_nextCalloutSoundTime = Now;
 	}
 
 	const float StartTime = FMath::Max(Now, _nextCalloutSoundTime) + FMath::Max(0.0f, ExtraDelay);
 	const float Duration = FMath::Max(0.05f, Sound->GetDuration());
+	// 다음 콜아웃이 시작될 수 있는 시간을 현재 소리 길이만큼 뒤로 민다.
 	_nextCalloutSoundTime = StartTime + Duration;
 
 	_calloutSoundQueue.Add(Sound);
@@ -1290,6 +1397,7 @@ void AShootGameMode::PlayNextVoiceSound()
 
 	if (_voiceAudioComponent && _voiceAudioComponent->IsPlaying())
 	{
+		// 이미 음성이 재생 중이면 끝났다는 이벤트가 올 때까지 기다린다.
 		return;
 	}
 
@@ -1301,18 +1409,21 @@ void AShootGameMode::PlayNextVoiceSound()
 	const bool IsImportantVoice = _voiceImportantQueue.IsValidIndex(0) && _voiceImportantQueue[0];
 	if (IsImportantVoice && HasBlockingCalloutSound())
 	{
+		// 킬 콜아웃이 재생 중이면 중요한 안내도 잠깐 기다려 음성이 겹치지 않게 한다.
 		return;
 	}
 
 	const float Delay = _voiceDelayQueue.IsValidIndex(0) ? _voiceDelayQueue[0] : 0.0f;
 	if (Delay > 0.0f)
 	{
+		// 예약 지연 시간이 남아 있으면 타이머로 다시 PlayNextVoiceSound를 호출한다.
 		_voiceDelayQueue[0] = 0.0f;
 		GetWorldTimerManager().SetTimer(_voiceDelayTimerHandle, this, &AShootGameMode::PlayNextVoiceSound, Delay, false);
 		return;
 	}
 
 	USoundBase* Sound = _voiceSoundQueue[0];
+	// 큐의 맨 앞 소리를 꺼내고, 같은 인덱스의 delay/important 정보도 같이 제거한다.
 	_voiceSoundQueue.RemoveAt(0);
 	if (_voiceDelayQueue.Num() > 0)
 	{
@@ -1350,6 +1461,7 @@ void AShootGameMode::PlayNextCalloutSound()
 
 	if (_calloutAudioComponent && _calloutAudioComponent->IsPlaying())
 	{
+		// 현재 콜아웃이 끝나야 다음 콜아웃을 재생한다.
 		return;
 	}
 
@@ -1367,6 +1479,7 @@ void AShootGameMode::PlayNextCalloutSound()
 	}
 
 	USoundBase* Sound = _calloutSoundQueue[0];
+	// 콜아웃 큐의 맨 앞 소리를 꺼낸다.
 	_calloutSoundQueue.RemoveAt(0);
 	if (_calloutDelayQueue.Num() > 0)
 	{
@@ -1399,6 +1512,7 @@ float AShootGameMode::GetVoiceQueueDelay(float ExtraDelay) const
 	}
 
 	const float Now = GetWorld()->GetTimeSeconds();
+	// 이미 예약된 음성이 끝나는 시간까지 기다린 뒤 ExtraDelay를 추가한다.
 	return FMath::Max(0.0f, _nextVoiceSoundTime - Now) + FMath::Max(0.0f, ExtraDelay);
 }
 
@@ -1438,6 +1552,7 @@ void AShootGameMode::EnableUltimateForCurrentWave()
 	PlayImportantVoiceSound(_ultimateReadySound);
 	if (_pendingUltimateChargeCount > 0)
 	{
+		// 여러 충전이 동시에 예약된 경우 한 프레임에 몰아주지 않고 짧은 간격으로 지급한다.
 		GetWorldTimerManager().SetTimer(_ultimateReadyTimerHandle, this, &AShootGameMode::EnableUltimateForCurrentWave, 0.2f, false);
 	}
 }
@@ -1457,10 +1572,12 @@ void AShootGameMode::OpenLobbyLevel()
 {
 	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
 	{
+		// PlayerController가 있으면 ClientTravel로 이동해 플레이어 컨트롤 흐름을 유지한다.
 		PlayerController->ClientTravel(LobbyMapPackageName.ToString(), TRAVEL_Absolute);
 		return;
 	}
 
+	// Controller가 없는 예외 상황에서는 OpenLevel로 직접 맵을 연다.
 	UGameplayStatics::OpenLevel(this, LobbyMapPackageName, false);
 }
 
@@ -1494,6 +1611,7 @@ void AShootGameMode::QuitGameNow()
 
 void AShootGameMode::LoadLeaderboard()
 {
+	// SaveGame 슬롯에서 기존 기록을 읽어 온다. 저장 파일이 없으면 빈 리더보드로 시작한다.
 	_leaderboardEntries.Empty();
 
 	USaveGame* SaveGame = UGameplayStatics::LoadGameFromSlot(TEXT("ShootCPPLeaderboard"), 0);
@@ -1512,6 +1630,7 @@ void AShootGameMode::SaveLeaderboardEntry(bool DidWin)
 		return;
 	}
 
+	// 현재 판의 결과를 FLeaderboardEntry로 묶어 메모리 배열에 추가한 뒤 SaveGame 슬롯에 다시 저장한다.
 	FLeaderboardEntry Entry;
 	Entry.PlayerName = TEXT("ACE");
 	Entry.ShipName = Player->GetShipName();
@@ -1534,6 +1653,7 @@ void AShootGameMode::SaveLeaderboardEntry(bool DidWin)
 
 void AShootGameMode::SortAndTrimLeaderboard()
 {
+	// 점수가 높은 순으로 정렬하고, 동점이면 더 높은 웨이브까지 간 기록을 우선한다.
 	_leaderboardEntries.Sort([](const FLeaderboardEntry& A, const FLeaderboardEntry& B)
 	{
 		if (A.Score == B.Score)
@@ -1546,6 +1666,7 @@ void AShootGameMode::SortAndTrimLeaderboard()
 
 	if (_leaderboardEntries.Num() > MaxLeaderboardEntries)
 	{
+		// 화면에는 Top 5만 필요하므로 저장 데이터도 5개로 제한한다.
 		_leaderboardEntries.SetNum(MaxLeaderboardEntries);
 	}
 }
@@ -1557,6 +1678,7 @@ void AShootGameMode::ApplyMasterVolume()
 		return;
 	}
 
+	// SoundClass 전체에 볼륨 배율을 적용해 BGM/효과음/음성의 기준 볼륨을 함께 조절한다.
 	UGameplayStatics::SetSoundMixClassOverride(this, _masterSoundMix, _masterSoundClass, _masterVolume, 1.0f, 0.05f, true);
 	UGameplayStatics::PushSoundMixModifier(this, _masterSoundMix);
 }
@@ -1568,6 +1690,8 @@ float AShootGameMode::GetCurrentSpawnInterval() const
 
 const FWaveDesign& AShootGameMode::GetCurrentWaveDesign() const
 {
+	// 현재 웨이브가 배열 범위를 넘지 않게 Clamp한다.
+	// 보스 이후에도 잘못된 인덱스 접근으로 크래시가 나지 않도록 방어한다.
 	const int32 Index = FMath::Clamp(_currentWave - 1, 0, _waveDesigns.Num() - 1);
 	return _waveDesigns[Index];
 }
@@ -1577,6 +1701,7 @@ FVector AShootGameMode::GetSpawnLocation(float ForwardOffset) const
 	const APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
 	const FVector PlayerLocation = Player ? Player->GetActorLocation() : FVector::ZeroVector;
 
+	// 적은 항상 플레이어 앞쪽 X 위치에 생성하고, Y만 랜덤으로 흔들어 다른 라인에서 접근하게 한다.
 	return FVector(
 		PlayerLocation.X + ForwardOffset,
 		FMath::RandRange(-760.0f, 760.0f),

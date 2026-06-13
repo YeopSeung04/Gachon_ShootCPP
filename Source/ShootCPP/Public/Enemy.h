@@ -25,6 +25,8 @@ public:
 	int32 GetScoreValue() const;
 
 protected:
+	// AEnemy는 일반 적의 공통 로직
+	// 이동 AI, 충돌 피해, 피격/처치 처리를 담당하고 BossEnemy가 이를 상속해 패턴만 확장
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shoot|Component", meta=(AllowPrivateAccess="true"))
 	class UBoxComponent* _boxComponent;
 
